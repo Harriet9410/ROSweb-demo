@@ -99,7 +99,7 @@ export function Scene3D({ mode }: { mode: AppMode }) {
       <RobotModel x={robotPose.x} z={robotPose.z} yaw={robotPose.yaw} />
       <SceneEvents mode={mode} />
       {(mode === 'hrz') && <HRZEditor3D />}
-      {(mode === 'hrp') && <HRPEditor3D />}
+      {(mode === 'hrp') && <HRPEditor3D robotX={robotPose.x} robotZ={robotPose.z} />}
       <CameraControls mode={mode} />
       <gridHelper args={[50, 50, '#555', '#333']} position={[5, 0, 5]} />
     </Canvas>
