@@ -1,0 +1,42 @@
+import { useState, useEffect } from 'react';
+import { Sidebar } from './components/layout/Sidebar';
+import { StatusBar } from './components/layout/StatusBar';
+import { Scene3D } from './components/scene/Scene3D';
+import type { AppMode } from './components/ui/ModeSelector';
+import { useHRZStore } from './stores/hrzStore';
+import { useHRPStore } from './stores/hrpStore';
+import { save, load } from './utils/persistence';
+
+function App() {
+  const [mode, setMode] = useState<AppMode>('navigate');
+  const hrzZones = useHRZStore((s) => s.zones);
+  const hrpPath = useHRPStore((s) => s.path);
+  const loadZones = useHRZStore((s) => s.loadZones);
+  const loadPath = useHRPStore((s) => s.loadPath);
+
+  useEffect(() => {
+    const data = load();
+    if (data) {
+      if (data.hrzZones) loadZones(data.hrzZones);
+      if (data.hrpPath) loadPath(data.hrpPath);
+    }
+  }, []);
+
+  useEffect(() => {
+    save(hrzZones, hrpPath);
+  }, [hrzZones, hrpPath]);
+
+  return (
+    <div className="flex h-screen w-screen bg-gray-900 text-white">
+      <Sidebar mode={mode} onModeChange={setMode} />
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1">
+          <Scene3D mode={mode} />
+        </div>
+        <StatusBar />
+      </div>
+    </div>
+  );
+}
+
+export default App;
