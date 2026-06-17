@@ -15,7 +15,7 @@ export function HRZEditor3D() {
           vertices={currentVertices}
           color="#ff9800"
           opacity={0.2}
-          closed={currentVertices.length >= 3}
+          closed={false}
         />
       )}
     </group>

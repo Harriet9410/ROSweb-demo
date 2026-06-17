@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { useMemo } from 'react';
 import { Vec2 } from '../../utils/coordinate';
 
 interface HRZPolygonProps {
@@ -11,27 +12,36 @@ interface HRZPolygonProps {
 export function HRZPolygon({ vertices, color = '#e53935', opacity = 0.3, closed = true }: HRZPolygonProps) {
   if (vertices.length === 0) return null;
 
-  const linePoints = vertices.map((v) => new THREE.Vector3(v.x, 0.02, v.z));
-  if (closed && vertices.length >= 2) {
-    linePoints.push(new THREE.Vector3(vertices[0].x, 0.02, vertices[0].z));
-  }
+  const linePositions = useMemo(() => {
+    const pts = vertices.map((v) => [v.x, 0.02, v.z]);
+    if (closed && vertices.length >= 3) {
+      pts.push([vertices[0].x, 0.02, vertices[0].z]);
+    }
+    return new Float32Array(pts.flat());
+  }, [vertices, closed]);
+
+  const lineCount = closed && vertices.length >= 3 ? vertices.length + 1 : vertices.length;
+
+  const geometryKey = vertices.map((v) => `${v.x.toFixed(2)},${v.z.toFixed(2)}`).join('|');
 
   return (
     <group>
-      {vertices.length >= 3 && (
+      {closed && vertices.length >= 3 && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
           <shapeGeometry args={[createShape(vertices)]} />
           <meshBasicMaterial color={color} transparent opacity={opacity} side={2} />
         </mesh>
       )}
-      {linePoints.length >= 2 && (
-        <line>
-          <bufferAttribute
-            attach="geometry-attributes-position"
-            count={linePoints.length}
-            array={new Float32Array(linePoints.flatMap((p) => [p.x, p.y, p.z]))}
-            itemSize={3}
-          />
+      {lineCount >= 2 && (
+        <line key={geometryKey}>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              count={lineCount}
+              array={linePositions}
+              itemSize={3}
+            />
+          </bufferGeometry>
           <lineBasicMaterial color={color} linewidth={2} />
         </line>
       )}
