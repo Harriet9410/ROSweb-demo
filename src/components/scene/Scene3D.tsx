@@ -17,6 +17,7 @@ import { useRosStore } from '../../stores/rosStore';
 import { useWaypointStore, Waypoint } from '../../stores/waypointStore';
 import { useMapEditorStore } from '../../stores/mapEditorStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
+import { publishNavGoal } from '../../ros/connection';
 import { Vec2, dist } from '../../utils/coordinate';
 
 function SceneEvents({ mode }: { mode: AppMode }) {
@@ -57,9 +58,17 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         store.addPoint(pt);
         lastPathPoint.current = pt;
       } else if (mode === 'navigate') {
+        const rosStore = useRosStore.getState();
         const wpStore = useWaypointStore.getState();
-        if (wpStore.navigating) return;
-        wpStore.addWaypoint(pt);
+        if (rosStore.isMock) {
+          if (wpStore.navigating) return;
+          wpStore.addWaypoint(pt);
+        } else if (rosStore.status === 'connected') {
+          publishNavGoal(pt.x, pt.z);
+          wpStore.addWaypoint(pt);
+          wpStore.setCurrentWaypointIdx(0);
+          wpStore.setNavigating(true);
+        }
       } else if (mode === 'mapedit') {
         const isMock = useRosStore.getState().isMock;
         if (!isMock) return;
