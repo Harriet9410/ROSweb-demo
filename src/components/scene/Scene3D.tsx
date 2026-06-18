@@ -7,13 +7,15 @@ import { CameraControls } from './CameraControls';
 import { HRZEditor3D } from '../editor/HRZEditor3D';
 import { HRPEditor3D } from '../editor/HRPEditor3D';
 import { NavPathVisual } from './NavPathVisual';
+import { MapEditPreview } from './MapEditPreview';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useRosStore } from '../../stores/rosStore';
 import { useNavTargetStore } from '../../stores/navTargetStore';
-import { mockNavigateTo, mockCancelNav } from '../../ros/mock';
+import { useMapEditorStore } from '../../stores/mapEditorStore';
+import { mockNavigateTo, mockCancelNav, mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
 import { Vec2, dist } from '../../utils/coordinate';
 
 function SceneEvents({ mode }: { mode: AppMode }) {
@@ -21,6 +23,7 @@ function SceneEvents({ mode }: { mode: AppMode }) {
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
   const lastPathPoint = useRef<Vec2 | null>(null);
+  const isDrawingMap = useRef(false);
 
   const getScenePoint = useCallback(
     (e: PointerEvent): Vec2 | null => {
@@ -61,27 +64,69 @@ function SceneEvents({ mode }: { mode: AppMode }) {
           }
           mockNavigateTo(pt.x, pt.z);
         }
+      } else if (mode === 'mapedit') {
+        const isMock = useRosStore.getState().isMock;
+        if (!isMock) return;
+        const editStore = useMapEditorStore.getState();
+        const tool = editStore.tool;
+
+        if (tool === 'rect') {
+          const col = Math.floor(pt.x / 0.1);
+          const row = Math.floor(pt.z / 0.1);
+          editStore.setRectStart({ col, row });
+        } else if (tool === 'robot') {
+          mockPlaceRobot(pt.x, pt.z);
+        } else {
+          isDrawingMap.current = true;
+          const occupied = tool === 'wall';
+          mockPaintBrush(pt.x, pt.z, editStore.brushSize, occupied);
+        }
       }
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (mode !== 'hrp') return;
-      const store = useHRPStore.getState();
-      if (!store.isDrawing) return;
-      if (e.buttons !== 1) return;
+      if (mode === 'hrp') {
+        const store = useHRPStore.getState();
+        if (!store.isDrawing) return;
+        if (e.buttons !== 1) return;
+        const pt = getScenePoint(e);
+        if (!pt) return;
+        if (lastPathPoint.current && dist(pt, lastPathPoint.current) < 0.1) return;
+        store.addPoint(pt);
+        lastPathPoint.current = pt;
+        return;
+      }
 
-      const pt = getScenePoint(e);
-      if (!pt) return;
-      if (lastPathPoint.current && dist(pt, lastPathPoint.current) < 0.1) return;
-      store.addPoint(pt);
-      lastPathPoint.current = pt;
+      if (mode === 'mapedit' && isDrawingMap.current) {
+        const pt = getScenePoint(e);
+        if (!pt) return;
+        const editStore = useMapEditorStore.getState();
+        const occupied = editStore.tool === 'wall';
+        mockPaintBrush(pt.x, pt.z, editStore.brushSize, occupied);
+      }
     };
 
     const onPointerUp = (e: PointerEvent) => {
       if (e.button !== 0) return;
+
       if (mode === 'hrp') {
         const store = useHRPStore.getState();
         if (store.isDrawing) store.finishDrawing();
+      }
+
+      if (mode === 'mapedit') {
+        const editStore = useMapEditorStore.getState();
+        if (editStore.tool === 'rect' && editStore.rectStart) {
+          const pt = getScenePoint(e);
+          if (pt) {
+            const start = editStore.rectStart;
+            const sx = (start.col + 0.5) * 0.1;
+            const sz = (start.row + 0.5) * 0.1;
+            mockPaintRect(sx, sz, pt.x, pt.z, true);
+            editStore.setRectStart(null);
+          }
+        }
+        isDrawingMap.current = false;
       }
     };
 
@@ -122,6 +167,7 @@ export function Scene3D({ mode }: { mode: AppMode }) {
           <HRPEditor3D robotX={robotPose.x} robotZ={robotPose.z} />
         </>
       )}
+      {mode === 'mapedit' && <MapEditPreview />}
       {navTarget && <NavTargetMarker x={navTarget.x} z={navTarget.z} />}
       {plannedPath.length >= 2 && navigating && (
         <NavPathVisual path={plannedPath} color="#ff4081" />

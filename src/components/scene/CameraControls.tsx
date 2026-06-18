@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from '@react-three/drei';
 
 interface CameraControlsProps {
-  mode: 'navigate' | 'hrz' | 'hrp';
+  mode: 'navigate' | 'hrz' | 'hrp' | 'mapedit';
 }
 
 export function CameraControls({ mode }: CameraControlsProps) {

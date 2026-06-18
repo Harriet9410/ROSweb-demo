@@ -1,4 +1,4 @@
-export type AppMode = 'navigate' | 'hrz' | 'hrp';
+export type AppMode = 'navigate' | 'hrz' | 'hrp' | 'mapedit';
 
 interface ModeSelectorProps {
   mode: AppMode;
@@ -7,6 +7,7 @@ interface ModeSelectorProps {
 
 const modes: { key: AppMode; label: string; icon: string }[] = [
   { key: 'navigate', label: 'Navigate', icon: '🧭' },
+  { key: 'mapedit', label: 'Map Edit', icon: '🗺️' },
   { key: 'hrz', label: 'HRZ Zone', icon: '🚫' },
   { key: 'hrp', label: 'HRP Path', icon: '✏️' },
 ];

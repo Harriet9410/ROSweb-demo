@@ -21,6 +21,7 @@ let pathIdx = 0;
 let mockLog: string[] = [];
 let logListeners: ((log: string[]) => void)[] = [];
 let currentGrid: OccupancyGridData | null = null;
+let customData: number[] | null = null;
 
 function addLog(msg: string) {
   const ts = new Date().toLocaleTimeString();
@@ -301,7 +302,19 @@ export function startMock(): void {
   mockLog = [];
   useRosStore.getState().setStatus('connected');
 
-  const grid = generateMockGrid();
+  if (!customData) {
+    const grid = generateMockGrid();
+    customData = [...grid.data];
+  }
+
+  const grid: OccupancyGridData = {
+    width: MAP_WIDTH,
+    height: MAP_HEIGHT,
+    resolution: RESOLUTION,
+    originX: 0,
+    originY: 0,
+    data: [...customData],
+  };
   currentGrid = grid;
   useMapStore.getState().setGrid(grid);
   addLog('Mock map published to /map (100x100, 0.1m res)');
@@ -519,4 +532,90 @@ export function mockCancelNav(): void {
   pathIdx = 0;
   useNavTargetStore.getState().clearNav();
   addLog('Navigation cancelled');
+}
+
+export function mockPaintBrush(worldX: number, worldZ: number, radius: number, occupied: boolean): void {
+  if (!currentGrid) return;
+  const center = worldToGrid(worldX, worldZ);
+  let changed = false;
+  for (let dr = -radius; dr <= radius; dr++) {
+    for (let dc = -radius; dc <= radius; dc++) {
+      if (dr * dr + dc * dc > radius * radius) continue;
+      const r = center.row + dr;
+      const c = center.col + dc;
+      if (r < 0 || r >= MAP_HEIGHT || c < 0 || c >= MAP_WIDTH) continue;
+      const idx = r * MAP_WIDTH + c;
+      const val = occupied ? OCCUPIED : 0;
+      if (currentGrid.data[idx] !== val) {
+        currentGrid.data[idx] = val;
+        if (customData) customData[idx] = val;
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
+  }
+}
+
+export function mockPaintRect(
+  startWorldX: number, startWorldZ: number,
+  endWorldX: number, endWorldZ: number,
+  occupied: boolean
+): void {
+  if (!currentGrid) return;
+  const g1 = worldToGrid(startWorldX, startWorldZ);
+  const g2 = worldToGrid(endWorldX, endWorldZ);
+  const minC = Math.min(g1.col, g2.col);
+  const maxC = Math.max(g1.col, g2.col);
+  const minR = Math.min(g1.row, g2.row);
+  const maxR = Math.max(g1.row, g2.row);
+  const val = occupied ? OCCUPIED : 0;
+
+  for (let r = minR; r <= maxR; r++) {
+    for (let c = minC; c <= maxC; c++) {
+      if (r < 0 || r >= MAP_HEIGHT || c < 0 || c >= MAP_WIDTH) continue;
+      const idx = r * MAP_WIDTH + c;
+      currentGrid.data[idx] = val;
+      if (customData) customData[idx] = val;
+    }
+  }
+  useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
+  addLog(`Painted rect (${minC},${minR})->(${maxC},${maxR}) ${occupied ? 'wall' : 'free'}`);
+}
+
+export function mockPlaceRobot(worldX: number, worldZ: number): void {
+  robotX = worldX;
+  robotZ = worldZ;
+  robotYaw = 0;
+  smoothPath = [];
+  pathIdx = 0;
+  useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
+  useNavTargetStore.getState().clearNav();
+  addLog(`Robot placed at (${worldX.toFixed(1)}, ${worldZ.toFixed(1)})`);
+}
+
+export function mockResetMap(): void {
+  const grid = generateMockGrid();
+  customData = [...grid.data];
+  currentGrid = { ...grid, data: [...grid.data] };
+  useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
+  addLog('Map reset to default');
+}
+
+export function mockClearMap(): void {
+  if (!currentGrid) return;
+  const data = new Array(MAP_WIDTH * MAP_HEIGHT).fill(0);
+  for (let col = 0; col < MAP_WIDTH; col++) {
+    data[col] = OCCUPIED;
+    data[(MAP_HEIGHT - 1) * MAP_WIDTH + col] = OCCUPIED;
+  }
+  for (let row = 0; row < MAP_HEIGHT; row++) {
+    data[row * MAP_WIDTH] = OCCUPIED;
+    data[row * MAP_WIDTH + MAP_WIDTH - 1] = OCCUPIED;
+  }
+  customData = [...data];
+  currentGrid = { ...currentGrid, data: [...data] };
+  useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
+  addLog('Map cleared (only borders remain)');
 }
