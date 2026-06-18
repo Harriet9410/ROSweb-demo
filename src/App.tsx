@@ -5,6 +5,7 @@ import { Scene3D } from './components/scene/Scene3D';
 import type { AppMode } from './components/ui/ModeSelector';
 import { useHRZStore } from './stores/hrzStore';
 import { useHRPStore } from './stores/hrpStore';
+import { useRosStore } from './stores/rosStore';
 import { save, load } from './utils/persistence';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
   const hrpPath = useHRPStore((s) => s.path);
   const loadZones = useHRZStore((s) => s.loadZones);
   const loadPath = useHRPStore((s) => s.loadPath);
+  const isMock = useRosStore((s) => s.isMock);
 
   useEffect(() => {
     const data = load();
@@ -25,6 +27,12 @@ function App() {
   useEffect(() => {
     save(hrzZones, hrpPath);
   }, [hrzZones, hrpPath]);
+
+  useEffect(() => {
+    if (!isMock && mode === 'mapedit') {
+      setMode('navigate');
+    }
+  }, [isMock, mode]);
 
   return (
     <div className="flex h-screen w-screen bg-gray-900 text-white">
