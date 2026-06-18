@@ -1,22 +1,26 @@
 import { useMapStore } from '../stores/mapStore';
 import { useRosStore } from '../stores/rosStore';
 import { useRobotPoseStore } from '../stores/robotPoseStore';
+import { useNavTargetStore } from '../stores/navTargetStore';
 import type { OccupancyGridData } from '../utils/mapRenderer';
 
 const MAP_WIDTH = 100;
 const MAP_HEIGHT = 100;
 const RESOLUTION = 0.1;
+const OCCUPIED = 254;
+const ROBOT_RADIUS_CELLS = 2;
 
 let mockTimer: ReturnType<typeof setInterval> | null = null;
 let odomTimer: ReturnType<typeof setInterval> | null = null;
 
-let robotX = 5.0;
-let robotZ = 5.0;
+let robotX = 1.5;
+let robotZ = 1.5;
 let robotYaw = 0;
-let targetPath: { x: number; z: number }[] = [];
+let smoothPath: { x: number; z: number }[] = [];
 let pathIdx = 0;
 let mockLog: string[] = [];
 let logListeners: ((log: string[]) => void)[] = [];
+let currentGrid: OccupancyGridData | null = null;
 
 function addLog(msg: string) {
   const ts = new Date().toLocaleTimeString();
@@ -52,7 +56,7 @@ function generateMockGrid(): OccupancyGridData {
         (row >= 40 && row <= 50 && col >= 70 && col <= 80);
 
       if (isBorder || isInnerWall || isObstacle) {
-        data.push(254);
+        data.push(OCCUPIED);
       } else {
         data.push(0);
       }
@@ -68,18 +72,221 @@ function generateMockGrid(): OccupancyGridData {
   };
 }
 
+function isInflatedOccupied(grid: OccupancyGridData, col: number, row: number): boolean {
+  for (let dr = -ROBOT_RADIUS_CELLS; dr <= ROBOT_RADIUS_CELLS; dr++) {
+    for (let dc = -ROBOT_RADIUS_CELLS; dc <= ROBOT_RADIUS_CELLS; dc++) {
+      if (dr * dr + dc * dc > ROBOT_RADIUS_CELLS * ROBOT_RADIUS_CELLS) continue;
+      const r = row + dr;
+      const c = col + dc;
+      if (r < 0 || r >= grid.height || c < 0 || c >= grid.width) return true;
+      if (grid.data[r * grid.width + c] === OCCUPIED) return true;
+    }
+  }
+  return false;
+}
+
+type AStarNode = { col: number; row: number; g: number; h: number; f: number; parent: AStarNode | null };
+
+function aStar(
+  grid: OccupancyGridData,
+  startCol: number,
+  startRow: number,
+  endCol: number,
+  endRow: number
+): { col: number; row: number }[] {
+  const key = (c: number, r: number) => `${c},${r}`;
+  const open: AStarNode[] = [];
+  const closed = new Set<string>();
+
+  const h = (c: number, r: number) =>
+    Math.abs(c - endCol) + Math.abs(r - endRow);
+
+  const startNode: AStarNode = { col: startCol, row: startRow, g: 0, h: h(startCol, startRow), f: h(startCol, startRow), parent: null };
+  open.push(startNode);
+
+  const dirs = [
+    [1, 0], [-1, 0], [0, 1], [0, -1],
+    [1, 1], [-1, -1], [1, -1], [-1, 1],
+  ];
+
+  let iterations = 0;
+  const maxIterations = 50000;
+
+  while (open.length > 0 && iterations < maxIterations) {
+    iterations++;
+    open.sort((a, b) => a.f - b.f);
+    const current = open.shift()!;
+    const ck = key(current.col, current.row);
+
+    if (closed.has(ck)) continue;
+    closed.add(ck);
+
+    if (current.col === endCol && current.row === endRow) {
+      const path: { col: number; row: number }[] = [];
+      let node: AStarNode | null = current;
+      while (node) {
+        path.unshift({ col: node.col, row: node.row });
+        node = node.parent;
+      }
+      return path;
+    }
+
+    for (const [dc, dr] of dirs) {
+      const nc = current.col + dc;
+      const nr = current.row + dr;
+      if (nc < 0 || nc >= grid.width || nr < 0 || nr >= grid.height) continue;
+      if (closed.has(key(nc, nr))) continue;
+      if (isInflatedOccupied(grid, nc, nr)) continue;
+
+      const moveCost = (dc !== 0 && dr !== 0) ? 1.414 : 1;
+      const g = current.g + moveCost;
+      const hv = h(nc, nr);
+      const existing = open.find((n) => n.col === nc && n.row === nr);
+      if (existing) {
+        if (g < existing.g) {
+          existing.g = g;
+          existing.f = g + hv;
+          existing.parent = current;
+        }
+      } else {
+        open.push({ col: nc, row: nr, g, h: hv, f: g + hv, parent: current });
+      }
+    }
+  }
+
+  return [];
+}
+
+function smoothPathFn(
+  grid: OccupancyGridData,
+  rawPath: { col: number; row: number }[]
+): { x: number; z: number }[] {
+  if (rawPath.length === 0) return [];
+
+  const result: { col: number; row: number }[] = [rawPath[0]];
+  let current = 0;
+
+  while (current < rawPath.length - 1) {
+    let farthest = current + 1;
+    for (let i = rawPath.length - 1; i > current + 1; i--) {
+      if (lineOfSight(grid, rawPath[current], rawPath[i])) {
+        farthest = i;
+        break;
+      }
+    }
+    result.push(rawPath[farthest]);
+    current = farthest;
+  }
+
+  return result.map((p) => ({
+    x: (p.col + 0.5) * RESOLUTION,
+    z: (p.row + 0.5) * RESOLUTION,
+  }));
+}
+
+function lineOfSight(
+  grid: OccupancyGridData,
+  from: { col: number; row: number },
+  to: { col: number; row: number }
+): boolean {
+  let x0 = from.col;
+  let y0 = from.row;
+  const x1 = to.col;
+  const y1 = to.row;
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+
+  while (true) {
+    if (isInflatedOccupied(grid, x0, y0)) return false;
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+  }
+  return true;
+}
+
+function worldToGrid(x: number, z: number): { col: number; row: number } {
+  return {
+    col: Math.floor(x / RESOLUTION),
+    row: Math.floor(z / RESOLUTION),
+  };
+}
+
+function findNearestFreeCell(
+  grid: OccupancyGridData,
+  col: number,
+  row: number,
+  maxRadius: number = 10
+): { col: number; row: number } | null {
+  if (!isInflatedOccupied(grid, col, row)) return { col, row };
+  for (let r = 1; r <= maxRadius; r++) {
+    for (let dr = -r; dr <= r; dr++) {
+      for (let dc = -r; dc <= r; dc++) {
+        if (Math.abs(dr) !== r && Math.abs(dc) !== r) continue;
+        const nc = col + dc;
+        const nr = row + dr;
+        if (nc < 0 || nc >= grid.width || nr < 0 || nr >= grid.height) continue;
+        if (!isInflatedOccupied(grid, nc, nr)) return { col: nc, row: nr };
+      }
+    }
+  }
+  return null;
+}
+
+function planPath(targetX: number, targetZ: number): { x: number; z: number }[] {
+  if (!currentGrid) return [{ x: targetX, z: targetZ }];
+
+  const rawStart = worldToGrid(robotX, robotZ);
+  const rawEnd = worldToGrid(targetX, targetZ);
+
+  const start = findNearestFreeCell(currentGrid, rawStart.col, rawStart.row);
+  if (!start) {
+    addLog('Robot is trapped, no free cell nearby');
+    return [];
+  }
+
+  const end = findNearestFreeCell(currentGrid, rawEnd.col, rawEnd.row);
+  if (!end) {
+    addLog('Target is trapped, no free cell nearby');
+    return [];
+  }
+
+  const rawPath = aStar(currentGrid, start.col, start.row, end.col, end.row);
+  if (rawPath.length === 0) {
+    addLog('No path found to target (obstacle blocked)');
+    return [];
+  }
+
+  const planned = smoothPathFn(currentGrid, rawPath);
+  planned.unshift({ x: robotX, z: robotZ });
+  planned.push({ x: targetX, z: targetZ });
+  return planned;
+}
+
 function updateOdom() {
-  if (targetPath.length > 0 && pathIdx < targetPath.length) {
-    const target = targetPath[pathIdx];
+  if (smoothPath.length > 0 && pathIdx < smoothPath.length) {
+    const target = smoothPath[pathIdx];
     const dx = target.x - robotX;
     const dz = target.z - robotZ;
     const d = Math.sqrt(dx * dx + dz * dz);
 
     if (d < 0.05) {
       pathIdx++;
-      addLog(`Robot reached waypoint ${pathIdx}/${targetPath.length}`);
+      if (pathIdx >= smoothPath.length) {
+        addLog('Robot reached destination');
+        smoothPath = [];
+        pathIdx = 0;
+        const navStore = useNavTargetStore.getState();
+        if (navStore.navigating) {
+          navStore.clearNav();
+        }
+      }
     } else {
-      const speed = Math.min(0.1, d);
+      const speed = Math.min(0.08, d);
       robotX += (dx / d) * speed;
       robotZ += (dz / d) * speed;
       robotYaw = Math.atan2(dx, -dz);
@@ -95,23 +302,20 @@ export function startMock(): void {
   useRosStore.getState().setStatus('connected');
 
   const grid = generateMockGrid();
+  currentGrid = grid;
   useMapStore.getState().setGrid(grid);
   addLog('Mock map published to /map (100x100, 0.1m res)');
   addLog('Mock odometry started');
+  addLog('A* pathfinding with obstacle avoidance enabled');
 
-  robotX = 5.0;
-  robotZ = 5.0;
+  robotX = 1.5;
+  robotZ = 1.5;
   robotYaw = 0;
   useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
-  targetPath = [];
+  smoothPath = [];
   pathIdx = 0;
 
   odomTimer = setInterval(updateOdom, 100);
-
-  mockTimer = setInterval(() => {
-    const grid = generateMockGrid();
-    useMapStore.getState().setGrid(grid);
-  }, 5000);
 }
 
 export function stopMock(): void {
@@ -123,8 +327,10 @@ export function stopMock(): void {
     clearInterval(odomTimer);
     odomTimer = null;
   }
-  targetPath = [];
+  smoothPath = [];
   pathIdx = 0;
+  currentGrid = null;
+  useNavTargetStore.getState().clearNav();
   useRosStore.getState().setStatus('disconnected');
 }
 
@@ -135,13 +341,182 @@ export function mockPublishHRZZones(json: string): void {
   zones.forEach((z: { id: string; vertices: { x: number; z: number }[] }, i: number) => {
     addLog(`  Zone ${i + 1} (${z.id}): ${z.vertices.length} vertices`);
   });
+
+  if (currentGrid && count > 0) {
+    addLog('Inflating restricted zones into costmap');
+    zones.forEach((z: { id: string; vertices: { x: number; z: number }[] }) => {
+      fillZoneInGrid(z.vertices);
+    });
+    useMapStore.getState().setGrid({ ...currentGrid, data: [...currentGrid.data] });
+    addLog('Costmap updated with restricted zones');
+  }
+}
+
+function fillZoneInGrid(vertices: { x: number; z: number }[]) {
+  if (!currentGrid || vertices.length < 3) return;
+
+  let minCol = MAP_WIDTH, maxCol = 0, minRow = MAP_HEIGHT, maxRow = 0;
+  const gVerts = vertices.map((v) => {
+    const g = worldToGrid(v.x, v.z);
+    minCol = Math.min(minCol, g.col);
+    maxCol = Math.max(maxCol, g.col);
+    minRow = Math.min(minRow, g.row);
+    maxRow = Math.max(maxRow, g.row);
+    return g;
+  });
+
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      if (col < 0 || col >= MAP_WIDTH || row < 0 || row >= MAP_HEIGHT) continue;
+      if (pointInPolygon(col, row, gVerts)) {
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            const r = row + dr;
+            const c = col + dc;
+            if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
+              currentGrid.data[r * currentGrid.width + c] = OCCUPIED;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function pointInPolygon(
+  px: number,
+  py: number,
+  polygon: { col: number; row: number }[]
+): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].col, yi = polygon[i].row;
+    const xj = polygon[j].col, yj = polygon[j].row;
+    if (((yi > py) !== (yj > py)) && (px < ((xj - xi) * (py - yi)) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function segmentCollides(
+  grid: OccupancyGridData,
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number
+): boolean {
+  const g1 = worldToGrid(fromX, fromZ);
+  const g2 = worldToGrid(toX, toZ);
+  let x0 = g1.col, y0 = g1.row;
+  const x1 = g2.col, y1 = g2.row;
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+
+  while (true) {
+    if (isInflatedOccupied(grid, x0, y0)) return true;
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+  }
+  return false;
+}
+
+function planPathAlongWaypoints(waypoints: { x: number; z: number }[]): { x: number; z: number }[] {
+  if (!currentGrid || waypoints.length < 2) return waypoints;
+
+  const result: { x: number; z: number }[] = [];
+  let i = 0;
+
+  while (i < waypoints.length - 1) {
+    const from = waypoints[i];
+
+    if (!segmentCollides(currentGrid, from.x, from.z, waypoints[i + 1].x, waypoints[i + 1].z)) {
+      result.push(from);
+      i++;
+      continue;
+    }
+
+    let detourEnd = i + 1;
+    for (let j = i + 2; j < waypoints.length; j++) {
+      if (segmentCollides(currentGrid, from.x, from.z, waypoints[j].x, waypoints[j].z)) {
+        detourEnd = j;
+      } else {
+        break;
+      }
+    }
+
+    const to = waypoints[detourEnd];
+    addLog(`Path segment (${i}->${detourEnd}) crosses obstacle, planning A* detour...`);
+
+    const rawStart = worldToGrid(from.x, from.z);
+    const rawEnd = worldToGrid(to.x, to.z);
+    const startCell = findNearestFreeCell(currentGrid, rawStart.col, rawStart.row);
+    const endCell = findNearestFreeCell(currentGrid, rawEnd.col, rawEnd.row);
+
+    if (startCell && endCell) {
+      const rawAPath = aStar(currentGrid, startCell.col, startCell.row, endCell.col, endCell.row);
+      if (rawAPath.length > 0) {
+        const detour = smoothPathFn(currentGrid, rawAPath);
+        result.push(from);
+        result.push(...detour);
+        i = detourEnd;
+        continue;
+      }
+    }
+
+    addLog(`A* detour failed, skipping to next waypoint`);
+    result.push(from);
+    i++;
+  }
+
+  result.push(waypoints[waypoints.length - 1]);
+  return result;
 }
 
 export function mockPublishHRPPath(poses: { x: number; z: number }[]): void {
   if (poses.length === 0) return;
   addLog(`Published to /hrp_path: ${poses.length} waypoints`);
 
-  targetPath = poses.map((p) => ({ x: p.x, z: p.z }));
+  const waypoints = [{ x: robotX, z: robotZ }, ...poses];
+  const checked = planPathAlongWaypoints(waypoints);
+  const collisionCount = waypoints.length - checked.length;
+
+  if (collisionCount > 0) {
+    addLog(`Detoured around ${Math.abs(collisionCount)} obstacle crossing(s)`);
+  }
+
+  smoothPath = checked;
   pathIdx = 0;
-  addLog(`Robot navigating along path...`);
+  useNavTargetStore.getState().clearNav();
+  addLog(`Following path with ${checked.length} waypoints...`);
+}
+
+export function mockNavigateTo(targetX: number, targetZ: number): void {
+  addLog(`Navigate to target (${targetX.toFixed(1)}, ${targetZ.toFixed(1)})`);
+  addLog('Planning A* path...');
+
+  const planned = planPath(targetX, targetZ);
+  if (planned.length > 0) {
+    smoothPath = planned;
+    pathIdx = 0;
+    useNavTargetStore.getState().setTarget({ x: targetX, z: targetZ });
+    useNavTargetStore.getState().setPlannedPath(planned);
+    useNavTargetStore.getState().setNavigating(true);
+    addLog(`Path found: ${planned.length} waypoints, navigating...`);
+  } else {
+    smoothPath = [];
+    pathIdx = 0;
+  }
+}
+
+export function mockCancelNav(): void {
+  smoothPath = [];
+  pathIdx = 0;
+  useNavTargetStore.getState().clearNav();
+  addLog('Navigation cancelled');
 }

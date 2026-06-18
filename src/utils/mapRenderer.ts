@@ -34,10 +34,14 @@ export function renderMapToCanvas(
     } else {
       gray = 254 - val;
     }
-    imgData.data[i * 4] = gray;
-    imgData.data[i * 4 + 1] = gray;
-    imgData.data[i * 4 + 2] = gray;
-    imgData.data[i * 4 + 3] = 255;
+    const srcRow = Math.floor(i / width);
+    const srcCol = i % width;
+    const dstRow = height - 1 - srcRow;
+    const dstIdx = dstRow * width + srcCol;
+    imgData.data[dstIdx * 4] = gray;
+    imgData.data[dstIdx * 4 + 1] = gray;
+    imgData.data[dstIdx * 4 + 2] = gray;
+    imgData.data[dstIdx * 4 + 3] = 255;
   }
   ctx.putImageData(imgData, 0, 0);
 }

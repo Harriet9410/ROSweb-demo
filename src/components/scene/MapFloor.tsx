@@ -14,6 +14,7 @@ export function MapFloor() {
     renderMapToCanvas(offlineCanvas, grid);
     if (meshRef.current) {
       const tex = new THREE.CanvasTexture(offlineCanvas);
+      tex.flipY = false;
       tex.minFilter = THREE.LinearFilter;
       tex.magFilter = THREE.NearestFilter;
       (meshRef.current.material as THREE.MeshBasicMaterial).map = tex;

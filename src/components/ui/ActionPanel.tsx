@@ -1,8 +1,9 @@
 import { useHRZStore } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
 import { useRosStore } from '../../stores/rosStore';
+import { useNavTargetStore } from '../../stores/navTargetStore';
 import { publishHRZZones, publishHRPPath } from '../../ros/connection';
-import { mockPublishHRZZones, mockPublishHRPPath } from '../../ros/mock';
+import { mockPublishHRZZones, mockPublishHRPPath, mockCancelNav } from '../../ros/mock';
 import { sceneToRos } from '../../utils/coordinate';
 import type { AppMode } from '../ui/ModeSelector';
 
@@ -15,6 +16,8 @@ export function ActionPanel({ mode }: ActionPanelProps) {
   const hrp = useHRPStore();
   const isMock = useRosStore((s) => s.isMock);
   const isConnected = useRosStore((s) => s.status) === 'connected';
+  const navigating = useNavTargetStore((s) => s.navigating);
+  const navTarget = useNavTargetStore((s) => s.target);
 
   const handlePublishHRZ = () => {
     const data = hrz.zones.map((z) => ({
@@ -39,10 +42,42 @@ export function ActionPanel({ mode }: ActionPanelProps) {
     }
   };
 
+  const handleCancelNav = () => {
+    mockCancelNav();
+  };
+
   const canPublish = isConnected;
 
   return (
     <div className="space-y-3">
+      {mode === 'navigate' && (
+        <>
+          {isMock ? (
+            <>
+              <div className="text-xs text-gray-400">
+                Left-click on the map to set a target point. Robot will auto-plan an obstacle-free path via A*.
+              </div>
+              {navigating && navTarget && (
+                <>
+                  <div className="text-xs text-blue-400">
+                    Navigating to ({navTarget.x.toFixed(1)}, {navTarget.z.toFixed(1)})...
+                  </div>
+                  <button
+                    onClick={handleCancelNav}
+                    className="w-full text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded"
+                  >
+                    Cancel Navigation
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            <div className="text-xs text-gray-400">
+              Right-click to rotate. Middle-click to pan. Scroll to zoom.
+            </div>
+          )}
+        </>
+      )}
       {mode === 'hrz' && (
         <>
           <div className="text-xs text-gray-400">
@@ -75,14 +110,14 @@ export function ActionPanel({ mode }: ActionPanelProps) {
       {mode === 'hrp' && (
         <>
           <div className="text-xs text-gray-400">
-            Left-click & drag to draw a reference path. Release to finish.
+            Draw a path by clicking & dragging. Robot will follow the exact drawn path.
           </div>
           <button
             onClick={handlePublishHRP}
             disabled={!canPublish || hrp.path.length < 2}
             className="w-full text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded"
           >
-            Publish HRP Path
+            Follow Drawn Path ({hrp.path.length} pts)
           </button>
           <button
             onClick={hrp.clearPath}
@@ -94,11 +129,6 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             Points: {hrp.path.length}
           </div>
         </>
-      )}
-      {mode === 'navigate' && (
-        <div className="text-xs text-gray-400">
-          Right-click to rotate. Middle-click to pan. Scroll to zoom.
-        </div>
       )}
     </div>
   );

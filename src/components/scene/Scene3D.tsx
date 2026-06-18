@@ -6,10 +6,14 @@ import { RobotModel } from './RobotModel';
 import { CameraControls } from './CameraControls';
 import { HRZEditor3D } from '../editor/HRZEditor3D';
 import { HRPEditor3D } from '../editor/HRPEditor3D';
+import { NavPathVisual } from './NavPathVisual';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
+import { useRosStore } from '../../stores/rosStore';
+import { useNavTargetStore } from '../../stores/navTargetStore';
+import { mockNavigateTo, mockCancelNav } from '../../ros/mock';
 import { Vec2, dist } from '../../utils/coordinate';
 
 function SceneEvents({ mode }: { mode: AppMode }) {
@@ -48,6 +52,15 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         store.startDrawing();
         store.addPoint(pt);
         lastPathPoint.current = pt;
+      } else if (mode === 'navigate') {
+        const isMock = useRosStore.getState().isMock;
+        if (isMock) {
+          const navStore = useNavTargetStore.getState();
+          if (navStore.navigating) {
+            mockCancelNav();
+          }
+          mockNavigateTo(pt.x, pt.z);
+        }
       }
     };
 
@@ -88,6 +101,9 @@ function SceneEvents({ mode }: { mode: AppMode }) {
 
 export function Scene3D({ mode }: { mode: AppMode }) {
   const robotPose = useRobotPoseStore((s) => s.pose);
+  const navTarget = useNavTargetStore((s) => s.target);
+  const plannedPath = useNavTargetStore((s) => s.plannedPath);
+  const navigating = useNavTargetStore((s) => s.navigating);
 
   return (
     <Canvas
@@ -100,9 +116,44 @@ export function Scene3D({ mode }: { mode: AppMode }) {
       <RobotModel x={robotPose.x} z={robotPose.z} yaw={robotPose.yaw} />
       <SceneEvents mode={mode} />
       {(mode === 'hrz') && <HRZEditor3D />}
-      {(mode === 'hrp') && <HRPEditor3D robotX={robotPose.x} robotZ={robotPose.z} />}
+      {(mode === 'hrp') && (
+        <>
+          <HRZEditor3D />
+          <HRPEditor3D robotX={robotPose.x} robotZ={robotPose.z} />
+        </>
+      )}
+      {navTarget && <NavTargetMarker x={navTarget.x} z={navTarget.z} />}
+      {plannedPath.length >= 2 && navigating && (
+        <NavPathVisual path={plannedPath} color="#ff4081" />
+      )}
       <CameraControls mode={mode} />
       <gridHelper args={[50, 50, '#555', '#333']} position={[5, 0, 5]} />
     </Canvas>
+  );
+}
+
+function NavTargetMarker({ x, z }: { x: number; z: number }) {
+  return (
+    <group position={[x, 0.02, z]}>
+      <mesh position={[0, 0.3, 0]}>
+        <sphereGeometry args={[0.08, 16, 16]} />
+        <meshBasicMaterial color="#ff4081" />
+      </mesh>
+      <line>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={2}
+            array={new Float32Array([0, 0, 0, 0, 0.22, 0])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial color="#ff4081" />
+      </line>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <ringGeometry args={[0.12, 0.18, 24]} />
+        <meshBasicMaterial color="#ff4081" side={2} transparent opacity={0.6} />
+      </mesh>
+    </group>
   );
 }
