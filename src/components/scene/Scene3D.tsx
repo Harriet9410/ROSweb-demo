@@ -173,6 +173,9 @@ export function Scene3D({ mode }: { mode: AppMode }) {
           isReached={navigating && i < currentWaypointIdx}
         />
       ))}
+      {(mode === 'navigate') && waypoints.length >= 2 && (
+        <WaypointLines waypoints={waypoints} navigating={navigating} currentIdx={currentWaypointIdx} />
+      )}
       {plannedPath.length >= 2 && navigating && (
         <NavPathVisual path={plannedPath} color="#ff4081" />
       )}
@@ -219,6 +222,43 @@ function WaypointMarker({ waypoint, index, isCurrent, isReached }: {
         <ringGeometry args={[0.1, 0.16, 24]} />
         <meshBasicMaterial color={bgColor} side={2} transparent opacity={isReached ? 0.3 : 0.7} />
       </mesh>
+    </group>
+  );
+}
+
+function WaypointLines({ waypoints, navigating, currentIdx }: {
+  waypoints: Waypoint[];
+  navigating: boolean;
+  currentIdx: number;
+}) {
+  return (
+    <group>
+      {waypoints.slice(0, -1).map((wp, i) => {
+        const next = waypoints[i + 1];
+        const reached = navigating && i < currentIdx;
+        const active = navigating && i === currentIdx;
+        const positions = new Float32Array([wp.x, 0.05, wp.z, next.x, 0.05, next.z]);
+        const color = reached ? '#666666' : active ? '#ff4081' : '#42a5f5';
+        return (
+          <line key={`${wp.id}-${next.id}`}>
+            <bufferGeometry>
+              <bufferAttribute
+                attach="attributes-position"
+                count={2}
+                array={positions}
+                itemSize={3}
+              />
+            </bufferGeometry>
+            <lineDashedMaterial
+              color={color}
+              dashSize={0.15}
+              gapSize={0.08}
+              transparent
+              opacity={reached ? 0.3 : 0.7}
+            />
+          </line>
+        );
+      })}
     </group>
   );
 }
