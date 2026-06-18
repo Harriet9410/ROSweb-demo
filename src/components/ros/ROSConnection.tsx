@@ -3,9 +3,12 @@ import { useRosStore } from '../../stores/rosStore';
 import { connect, disconnect } from '../../ros/connection';
 import { startMock, stopMock } from '../../ros/mock';
 
+type MockMapType = 'default' | 'blank';
+
 export function ROSConnection() {
   const { status, url, setUrl, isMock, setMock } = useRosStore();
   const [inputUrl, setInputUrl] = useState(url);
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   const handleConnect = () => {
     if (isMock) {
@@ -25,12 +28,13 @@ export function ROSConnection() {
     }
   };
 
-  const handleMock = () => {
+  const handleMockStart = (mapType: MockMapType) => {
     if (!isMock) {
       disconnect();
     }
     setMock(true);
-    startMock();
+    startMock(mapType);
+    setShowMapPicker(false);
   };
 
   const statusColor: Record<string, string> = {
@@ -75,19 +79,38 @@ export function ROSConnection() {
             Exit Mock
           </button>
         ) : (
-          status !== 'connected' && (
+          <>
             <button
-              onClick={handleMock}
+              onClick={() => setShowMapPicker(!showMapPicker)}
               className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded"
             >
               Mock Mode
             </button>
-          )
+          </>
         )}
         <span className="text-xs text-gray-400 capitalize">
           {status}{isMock ? ' (mock)' : ''}
         </span>
       </div>
+      {showMapPicker && !isMock && (
+        <div className="bg-gray-700 rounded p-2 space-y-1.5">
+          <div className="text-xs text-gray-300 font-medium">Select Map Type</div>
+          <button
+            onClick={() => handleMockStart('default')}
+            className="w-full text-xs text-left bg-gray-600 hover:bg-gray-500 text-white px-2 py-1.5 rounded"
+          >
+            <span className="font-medium">Default Map</span>
+            <span className="text-gray-300 ml-1">- Pre-built walls & obstacles</span>
+          </button>
+          <button
+            onClick={() => handleMockStart('blank')}
+            className="w-full text-xs text-left bg-gray-600 hover:bg-gray-500 text-white px-2 py-1.5 rounded"
+          >
+            <span className="font-medium">Blank Map</span>
+            <span className="text-gray-300 ml-1">- Empty with borders only</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

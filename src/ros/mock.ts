@@ -297,12 +297,22 @@ function updateOdom() {
   useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
 }
 
-export function startMock(): void {
+export function startMock(mapType: 'default' | 'blank' = 'default'): void {
   stopMock();
   mockLog = [];
   useRosStore.getState().setStatus('connected');
 
-  if (!customData) {
+  if (mapType === 'blank') {
+    customData = new Array(MAP_WIDTH * MAP_HEIGHT).fill(0);
+    for (let col = 0; col < MAP_WIDTH; col++) {
+      customData[col] = OCCUPIED;
+      customData[(MAP_HEIGHT - 1) * MAP_WIDTH + col] = OCCUPIED;
+    }
+    for (let row = 0; row < MAP_HEIGHT; row++) {
+      customData[row * MAP_WIDTH] = OCCUPIED;
+      customData[row * MAP_WIDTH + MAP_WIDTH - 1] = OCCUPIED;
+    }
+  } else if (!customData) {
     const grid = generateMockGrid();
     customData = [...grid.data];
   }
@@ -317,7 +327,8 @@ export function startMock(): void {
   };
   currentGrid = grid;
   useMapStore.getState().setGrid(grid);
-  addLog('Mock map published to /map (100x100, 0.1m res)');
+  addLog(`Mock map published to /map (${MAP_WIDTH}x${MAP_HEIGHT}, ${RESOLUTION}m res)`);
+  addLog(mapType === 'blank' ? 'Blank map loaded' : 'Default map with obstacles loaded');
   addLog('Mock odometry started');
   addLog('A* pathfinding with obstacle avoidance enabled');
 
