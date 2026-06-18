@@ -1,22 +1,21 @@
 import { useRef, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import { useMapStore } from '../../stores/mapStore';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useWaypointStore } from '../../stores/waypointStore';
 import { renderMapToCanvas } from '../../utils/mapRenderer';
 
 const MINIMAP_SIZE = 180;
-const PADDING = 8;
 
 export function MiniMap() {
   const grid = useMapStore((s) => s.grid);
-  const { camera, gl } = useThree();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { camera } = useThree();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapDirtyRef = useRef(true);
-  const sizeRef = useRef({ mapW: 0, mapH: 0, res: 0.02 });
+  const sizeRef = useRef({ mapW: 10, mapH: 10, res: 0.02 });
 
   useEffect(() => {
     if (!grid) return;
@@ -30,12 +29,7 @@ export function MiniMap() {
   const getViewportCorners = useCallback(() => {
     const raycaster = new THREE.Raycaster();
     const corners: { x: number; z: number }[] = [];
-    const ndcCorners = [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ];
+    const ndcCorners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     for (const [nx, ny] of ndcCorners) {
       raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
@@ -59,19 +53,23 @@ export function MiniMap() {
     const drawW = mapW * scale;
     const drawH = mapH * scale;
 
+    if (canvas.width !== Math.round(drawW) || canvas.height !== Math.round(drawH)) {
+      canvas.width = Math.round(drawW);
+      canvas.height = Math.round(drawH);
+      mapDirtyRef.current = true;
+    }
+
     if (mapDirtyRef.current) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(mapCanvasRef.current, 0, 0, drawW, drawH);
       mapDirtyRef.current = false;
-    } else {
-      const prev = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.putImageData(prev, 0, 0);
     }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, drawW, drawH);
+    ctx.clip();
+
+    ctx.drawImage(mapCanvasRef.current, 0, 0, drawW, drawH);
 
     const robotPose = useRobotPoseStore.getState().pose;
     const rx = robotPose.x * scale;
@@ -97,10 +95,10 @@ export function MiniMap() {
         ctx.lineTo(waypoints[i].x * scale, waypoints[i].z * scale);
       }
       ctx.stroke();
-      for (let i = 0; i < waypoints.length; i++) {
+      for (const wp of waypoints) {
         ctx.fillStyle = '#42a5f5';
         ctx.beginPath();
-        ctx.arc(waypoints[i].x * scale, waypoints[i].z * scale, 2.5, 0, Math.PI * 2);
+        ctx.arc(wp.x * scale, wp.z * scale, 2.5, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -117,37 +115,40 @@ export function MiniMap() {
       ctx.closePath();
       ctx.stroke();
     }
+
+    ctx.restore();
   });
 
   if (!grid) return null;
 
   const { mapW, mapH } = sizeRef.current;
   const scale = MINIMAP_SIZE / Math.max(mapW, mapH);
-  const drawW = mapW * scale;
-  const drawH = mapH * scale;
+  const drawW = Math.round(mapW * scale);
+  const drawH = Math.round(mapH * scale);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        position: 'absolute',
-        top: PADDING,
-        right: PADDING,
-        width: drawW + 2,
-        height: drawH + 2,
-        border: '1px solid rgba(255,255,255,0.3)',
-        borderRadius: 4,
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        zIndex: 10,
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        width={drawW}
-        height={drawH}
-        style={{ display: 'block' }}
-      />
-    </div>
+    <Html fullscreen style={{ pointerEvents: 'none' }}>
+      <div
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          width: drawW + 2,
+          height: drawH + 2,
+          border: '1px solid rgba(255,255,255,0.3)',
+          borderRadius: 4,
+          overflow: 'hidden',
+          background: '#1a1a2e',
+          zIndex: 10,
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          width={drawW}
+          height={drawH}
+          style={{ display: 'block' }}
+        />
+      </div>
+    </Html>
   );
 }
