@@ -8,7 +8,7 @@ import { HRZEditor3D } from '../editor/HRZEditor3D';
 import { HRPEditor3D } from '../editor/HRPEditor3D';
 import { NavPathVisual } from './NavPathVisual';
 import { MapEditPreview } from './MapEditPreview';
-import { MiniMap } from './MiniMap';
+import { MiniMapBridge, MiniMapOverlay } from './MiniMap';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
@@ -148,6 +148,7 @@ export function Scene3D({ mode }: { mode: AppMode }) {
   const plannedPath = useWaypointStore((s) => s.plannedPath);
 
   return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas
       camera={{ position: [5, 15, 15], fov: 50, near: 0.1, far: 500 }}
       style={{ background: '#1a1a2e' }}
@@ -181,9 +182,11 @@ export function Scene3D({ mode }: { mode: AppMode }) {
         <NavPathVisual path={plannedPath} color="#ff4081" />
       )}
       <CameraControls mode={mode} />
-      <MiniMap />
+      <MiniMapBridge />
       <gridHelper args={[50, 50, '#555', '#333']} position={[5, 0, 5]} />
     </Canvas>
+    <MiniMapOverlay />
+    </div>
   );
 }
 
