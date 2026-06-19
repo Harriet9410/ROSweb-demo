@@ -730,6 +730,13 @@ export function mockPlaceRobot(worldX: number, worldZ: number): void {
   addLog(`Robot placed at (${worldX.toFixed(1)}, ${worldZ.toFixed(1)})`);
 }
 
+export function setMockRobotPose(x: number, z: number, yaw: number): void {
+  robotX = x;
+  robotZ = z;
+  robotYaw = yaw;
+  useRobotPoseStore.getState().setPose({ x, z, yaw });
+}
+
 export function mockResetMap(): void {
   const grid = generateMockGrid();
   customData = [...grid.data];

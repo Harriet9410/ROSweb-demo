@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { useRobotPoseStore } from './robotPoseStore';
 import { useRosStore } from './rosStore';
 import { publishCmdVel } from '../ros/connection';
+import { setMockRobotPose } from '../ros/mock';
 
 const TELEOP_LINEAR = 0.3;
 const TELEOP_ANGULAR = 0.8;
@@ -62,7 +63,7 @@ export const useTeleopStore = create<TeleopState>((set, get) => ({
       const newYaw = pose.yaw + angular * dt;
       const newX = pose.x + Math.sin(pose.yaw) * linear * dt;
       const newZ = pose.z - Math.cos(pose.yaw) * linear * dt;
-      useRobotPoseStore.getState().setPose({ x: newX, z: newZ, yaw: newYaw });
+      setMockRobotPose(newX, newZ, newYaw);
       useRobotPoseStore.getState().setVelocity(linear, angular);
     } else {
       publishCmdVel(linear, angular);
