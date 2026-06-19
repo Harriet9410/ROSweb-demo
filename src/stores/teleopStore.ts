@@ -53,8 +53,8 @@ export const useTeleopStore = create<TeleopState>((set, get) => ({
     let angular = 0;
     if (keys.has('w')) linear += TELEOP_LINEAR;
     if (keys.has('s')) linear -= TELEOP_LINEAR;
-    if (keys.has('a')) angular += TELEOP_ANGULAR;
-    if (keys.has('d')) angular -= TELEOP_ANGULAR;
+    if (keys.has('a')) angular -= TELEOP_ANGULAR;
+    if (keys.has('d')) angular += TELEOP_ANGULAR;
 
     const isMock = useRosStore.getState().isMock;
     if (isMock) {
