@@ -23,6 +23,14 @@ import { publishNavGoal } from '../../ros/connection';
 import { Vec2, dist } from '../../utils/coordinate';
 
 const VERTEX_HIT_RADIUS = 0.15;
+const GRID_SIZE = 0.5;
+
+function snapToGrid(pt: Vec2): Vec2 {
+  return {
+    x: Math.round(pt.x / GRID_SIZE) * GRID_SIZE,
+    z: Math.round(pt.z / GRID_SIZE) * GRID_SIZE,
+  };
+}
 
 function SceneEvents({ mode }: { mode: AppMode }) {
   const { gl, camera } = useThree();
@@ -37,7 +45,7 @@ function SceneEvents({ mode }: { mode: AppMode }) {
   } | null>(null);
 
   const getScenePoint = useCallback(
-    (e: PointerEvent): Vec2 | null => {
+    (e: PointerEvent, snap: boolean = false): Vec2 | null => {
       const rect = gl.domElement.getBoundingClientRect();
       const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -45,7 +53,9 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       const hit = new THREE.Vector3();
       const result = raycaster.ray.intersectPlane(groundPlane, hit);
       if (!result) return null;
-      return { x: hit.x, z: hit.z };
+      const pt: Vec2 = { x: hit.x, z: hit.z };
+      if (snap && e.shiftKey) return snapToGrid(pt);
+      return pt;
     },
     [gl, camera, raycaster, groundPlane]
   );
@@ -56,7 +66,8 @@ function SceneEvents({ mode }: { mode: AppMode }) {
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
 
-      const pt = getScenePoint(e);
+      const snapMode = mode === 'hrz' || mode === 'hrp';
+      const pt = getScenePoint(e, snapMode);
       if (!pt) return;
 
       if (mode === 'hrz') {
@@ -140,7 +151,7 @@ function SceneEvents({ mode }: { mode: AppMode }) {
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      const pt = getScenePoint(e);
+      const pt = getScenePoint(e, mode === 'hrz' || mode === 'hrp');
       if (!pt) return;
 
       if (dragState.current) {
@@ -162,8 +173,6 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         const store = useHRPStore.getState();
         if (!store.isDrawing) return;
         if (e.buttons !== 1) return;
-        const pt = getScenePoint(e);
-        if (!pt) return;
         if (lastPathPoint.current && dist(pt, lastPathPoint.current) < 0.1) return;
         store.addPoint(pt);
         lastPathPoint.current = pt;
@@ -171,7 +180,6 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       }
 
       if (mode === 'mapedit' && isDrawingMap.current) {
-        const pt = getScenePoint(e);
         if (!pt) return;
         const editStore = useMapEditorStore.getState();
         const occupied = editStore.tool === 'wall';

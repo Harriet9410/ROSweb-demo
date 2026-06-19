@@ -228,7 +228,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
       {mode === 'hrz' && (
         <>
           <div className="text-xs text-gray-400">
-            Left-click to add vertices. Click the first vertex (yellow) to close.
+            Left-click to add vertices. Click the first vertex (yellow) to close. Hold Shift to snap to 0.5m grid.
           </div>
           <button
             onClick={handlePublishHRZ}
@@ -258,8 +258,8 @@ export function ActionPanel({ mode }: ActionPanelProps) {
         <>
           <div className="text-xs text-gray-400">
             {isMock
-              ? 'Draw a path by clicking & dragging. Robot will follow with obstacle avoidance.'
-              : 'Draw a path by clicking & dragging, then publish to ROS.'}
+              ? 'Draw a path by clicking & dragging. Robot will follow with obstacle avoidance. Hold Shift to snap to 0.5m grid.'
+              : 'Draw a path by clicking & dragging, then publish to ROS. Hold Shift to snap to 0.5m grid.'}
           </div>
           {hrp.path.length >= 2 && (
             <div className="space-y-1.5">
