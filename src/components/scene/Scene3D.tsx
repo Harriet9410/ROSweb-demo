@@ -76,7 +76,8 @@ function SceneEvents({ mode }: { mode: AppMode }) {
 
       const measureStore = useMeasureStore.getState();
       if (measureStore.measuring) {
-        measureStore.addPoint(pt);
+        const measurePt = getScenePoint(e, true);
+        if (measurePt) measureStore.addPoint(measurePt);
         return;
       }
 
