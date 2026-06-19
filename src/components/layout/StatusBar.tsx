@@ -3,10 +3,10 @@ import { useRosStore } from '../../stores/rosStore';
 import { useHRZStore } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
 import { useUndoStore } from '../../stores/undoStore';
-import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useTeleopStore } from '../../stores/teleopStore';
 import { useInflationStore } from '../../stores/inflationStore';
 import { useA11yStore } from '../../stores/a11yStore';
+import { useFleetStore } from '../../stores/fleetStore';
 import { t, Locale } from '../../i18n';
 import { setCameraPreset, CameraPreset } from '../scene/CameraControls';
 
@@ -37,11 +37,14 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
   const pathPts = useHRPStore((s) => s.path.length);
   const canUndo = useUndoStore((s) => s.canUndo);
   const canRedo = useUndoStore((s) => s.canRedo);
-  const linearV = useRobotPoseStore((s) => s.linearVelocity);
-  const angularV = useRobotPoseStore((s) => s.angularVelocity);
   const teleopEnabled = useTeleopStore((s) => s.teleopEnabled);
   const showInflation = useInflationStore((s) => s.showInflation);
   const locale = useA11yStore((s) => s.locale);
+  const fleetRobots = useFleetStore((s) => s.robots);
+  const activeRobotId = useFleetStore((s) => s.activeRobotId);
+  const activeBot = fleetRobots.find((r) => r.id === activeRobotId);
+  const linearV = activeBot?.linearVelocity ?? 0;
+  const angularV = activeBot?.angularVelocity ?? 0;
   const [shiftHeld, setShiftHeld] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);

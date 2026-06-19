@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { useCameraStore } from '../../stores/cameraStore';
-import { useRobotPoseStore } from '../../stores/robotPoseStore';
+import { useFleetStore } from '../../stores/fleetStore';
 
 interface CameraControlsProps {
   mode: 'navigate' | 'hrz' | 'hrp' | 'mapedit';
@@ -102,9 +102,12 @@ export function CameraControls({ mode, followRobot }: CameraControlsProps) {
     }
 
     if (followRobot) {
-      const pose = useRobotPoseStore.getState().pose;
-      lerpTarget.set(pose.x, 0, pose.z);
-      controlsRef.current.target.lerp(lerpTarget, 0.05);
+      const fleet = useFleetStore.getState();
+      const activeBot = fleet.robots.find((r) => r.id === fleet.activeRobotId);
+      if (activeBot) {
+        lerpTarget.set(activeBot.pose.x, 0, activeBot.pose.z);
+        controlsRef.current.target.lerp(lerpTarget, 0.05);
+      }
     }
 
     const t = controlsRef.current.target;

@@ -1,7 +1,6 @@
 import { useMapStore } from '../stores/mapStore';
 import { useRosStore } from '../stores/rosStore';
-import { useRobotPoseStore } from '../stores/robotPoseStore';
-import { useWaypointStore } from '../stores/waypointStore';
+import { useFleetStore } from '../stores/fleetStore';
 import { useToastStore } from '../stores/toastStore';
 import type { SegmentSpeed } from '../stores/hrpStore';
 import type { OccupancyGridData } from '../utils/mapRenderer';
@@ -303,19 +302,20 @@ function updateOdom() {
         pathSegmentSpeeds = [];
         pathIdx = 0;
 
-        const wpStore = useWaypointStore.getState();
-        if (wpStore.navigating) {
-          const nextIdx = wpStore.currentWaypointIdx + 1;
-          if (nextIdx < wpStore.waypoints.length) {
-            addLog(`Advancing to waypoint ${nextIdx + 1}/${wpStore.waypoints.length}`);
-            useToastStore.getState().addToast(`Reached waypoint ${wpStore.currentWaypointIdx + 1}, heading to ${nextIdx + 1}`, 'success');
-            wpStore.setCurrentWaypointIdx(nextIdx);
+        const fleet = useFleetStore.getState();
+        const activeBot = fleet.getActiveRobot();
+        if (activeBot && activeBot.navigating) {
+          const nextIdx = activeBot.currentWaypointIdx + 1;
+          if (nextIdx < activeBot.waypoints.length) {
+            addLog(`Advancing to waypoint ${nextIdx + 1}/${activeBot.waypoints.length}`);
+            useToastStore.getState().addToast(`Reached waypoint ${activeBot.currentWaypointIdx + 1}, heading to ${nextIdx + 1}`, 'success');
+            fleet.setCurrentWaypointIdx(fleet.activeRobotId, nextIdx);
             navigateToWaypoint(nextIdx);
           } else {
             addLog('All waypoints reached!');
             useToastStore.getState().addToast('All waypoints reached!', 'success');
-            wpStore.setNavigating(false);
-            wpStore.setPlannedPath([]);
+            fleet.setNavigating(fleet.activeRobotId, false);
+            fleet.setPlannedPath(fleet.activeRobotId, []);
           }
         }
       }
@@ -346,7 +346,8 @@ function updateOdom() {
     }
   }
 
-  useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
+  const fleet = useFleetStore.getState();
+  fleet.setRobotPose(fleet.activeRobotId, { x: robotX, z: robotZ, yaw: robotYaw });
 }
 
 export function startMock(mapType: 'default' | 'blank' = 'default'): void {
@@ -387,11 +388,11 @@ export function startMock(mapType: 'default' | 'blank' = 'default'): void {
   robotX = 1.5;
   robotZ = 1.5;
   robotYaw = 0;
-  useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
+  useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x: robotX, z: robotZ, yaw: robotYaw });
   smoothPath = [];
   pathSegmentSpeeds = [];
   pathIdx = 0;
-  useWaypointStore.getState().clearWaypoints();
+  useFleetStore.getState().clearWaypoints(useFleetStore.getState().activeRobotId);
 
   odomTimer = setInterval(updateOdom, 100);
 }
@@ -409,8 +410,9 @@ export function stopMock(): void {
   pathSegmentSpeeds = [];
   pathIdx = 0;
   currentGrid = null;
-  useWaypointStore.getState().clearNav();
-  useWaypointStore.getState().clearWaypoints();
+  const fleet = useFleetStore.getState();
+  fleet.clearNav(fleet.activeRobotId);
+  fleet.clearWaypoints(fleet.activeRobotId);
   useRosStore.getState().setStatus('disconnected');
 }
 
@@ -609,8 +611,9 @@ export function mockPublishHRPPath(poses: { x: number; z: number }[], segmentSpe
 }
 
 function navigateToWaypoint(wpIdx: number): void {
-  const wpStore = useWaypointStore.getState();
-  const wp = wpStore.waypoints[wpIdx];
+  const fleet = useFleetStore.getState();
+  const activeBot = fleet.getActiveRobot();
+  const wp = activeBot?.waypoints[wpIdx];
   if (!wp) return;
 
   const planned = planPath(wp.x, wp.z);
@@ -618,24 +621,25 @@ function navigateToWaypoint(wpIdx: number): void {
     smoothPath = planned;
     pathSegmentSpeeds = new Array(planned.length - 1).fill(0.5 as SegmentSpeed);
     pathIdx = 0;
-    wpStore.setPlannedPath(planned);
+    fleet.setPlannedPath(fleet.activeRobotId, planned);
     addLog(`Path to waypoint ${wpIdx + 1}: ${planned.length} waypoints`);
   } else {
     smoothPath = [];
     pathSegmentSpeeds = [];
     pathIdx = 0;
-    wpStore.setPlannedPath([]);
+    fleet.setPlannedPath(fleet.activeRobotId, []);
     addLog(`No path to waypoint ${wpIdx + 1}`);
   }
 }
 
 export function mockStartWaypointNav(): void {
-  const wpStore = useWaypointStore.getState();
-  if (wpStore.waypoints.length === 0) return;
+  const fleet = useFleetStore.getState();
+  const activeBot = fleet.getActiveRobot();
+  if (!activeBot || activeBot.waypoints.length === 0) return;
 
-  addLog(`Starting waypoint navigation (${wpStore.waypoints.length} waypoints)`);
-  wpStore.setCurrentWaypointIdx(0);
-  wpStore.setNavigating(true);
+  addLog(`Starting waypoint navigation (${activeBot.waypoints.length} waypoints)`);
+  fleet.setCurrentWaypointIdx(fleet.activeRobotId, 0);
+  fleet.setNavigating(fleet.activeRobotId, true);
   navigateToWaypoint(0);
 }
 
@@ -648,8 +652,8 @@ export function mockNavigateTo(targetX: number, targetZ: number): void {
     smoothPath = planned;
     pathSegmentSpeeds = new Array(planned.length - 1).fill(0.5 as SegmentSpeed);
     pathIdx = 0;
-    useWaypointStore.getState().setNavigating(true);
-    useWaypointStore.getState().setPlannedPath(planned);
+    useFleetStore.getState().setNavigating(useFleetStore.getState().activeRobotId, true);
+    useFleetStore.getState().setPlannedPath(useFleetStore.getState().activeRobotId, planned);
     addLog(`Path found: ${planned.length} waypoints, navigating...`);
   } else {
     smoothPath = [];
@@ -662,9 +666,9 @@ export function mockCancelNav(): void {
   smoothPath = [];
   pathSegmentSpeeds = [];
   pathIdx = 0;
-  const wpStore = useWaypointStore.getState();
-  wpStore.setNavigating(false);
-  wpStore.setPlannedPath([]);
+  const fleet = useFleetStore.getState();
+  fleet.setNavigating(fleet.activeRobotId, false);
+  fleet.setPlannedPath(fleet.activeRobotId, []);
   addLog('Navigation cancelled');
 }
 
@@ -725,7 +729,7 @@ export function mockPlaceRobot(worldX: number, worldZ: number): void {
   smoothPath = [];
   pathSegmentSpeeds = [];
   pathIdx = 0;
-  useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
+  useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x: robotX, z: robotZ, yaw: robotYaw });
   useWaypointStore.getState().clearNav();
   addLog(`Robot placed at (${worldX.toFixed(1)}, ${worldZ.toFixed(1)})`);
 }
@@ -734,7 +738,7 @@ export function setMockRobotPose(x: number, z: number, yaw: number): void {
   robotX = x;
   robotZ = z;
   robotYaw = yaw;
-  useRobotPoseStore.getState().setPose({ x, z, yaw });
+  useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x, z, yaw });
 }
 
 export function mockResetMap(): void {

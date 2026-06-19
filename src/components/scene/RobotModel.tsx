@@ -6,6 +6,8 @@ interface RobotModelProps {
   x: number;
   z: number;
   yaw: number;
+  color?: string;
+  isActive?: boolean;
 }
 
 const BODY_COLOR = '#3a3a4a';
@@ -19,7 +21,7 @@ const STRIP_COLOR = '#fdd835';
 const LIDAR_COLOR = '#2a2a3a';
 const SCREEN_COLOR = '#4fc3f7';
 
-export function RobotModel({ x, z, yaw }: RobotModelProps) {
+export function RobotModel({ x, z, yaw, color, isActive }: RobotModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const lidarRef = useRef<THREE.Group>(null);
 
@@ -35,8 +37,8 @@ export function RobotModel({ x, z, yaw }: RobotModelProps) {
 
   return (
     <group ref={groupRef}>
-      <Footprint />
-      <Chassis />
+      <Footprint footprintColor={color || '#42a5f5'} />
+      <Chassis bodyColor={isActive ? (color || BODY_COLOR) : BODY_COLOR} />
       <Wheels />
       <TopPlate />
       <LidarGroup ref={lidarRef} />
@@ -49,21 +51,21 @@ export function RobotModel({ x, z, yaw }: RobotModelProps) {
 
 const ROBOT_RADIUS = 0.16;
 
-function Footprint() {
+function Footprint({ footprintColor = '#42a5f5' }: { footprintColor?: string }) {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
       <circleGeometry args={[ROBOT_RADIUS, 48]} />
-      <meshBasicMaterial color="#42a5f5" transparent opacity={0.2} side={2} depthWrite={false} />
+      <meshBasicMaterial color={footprintColor} transparent opacity={0.2} side={2} depthWrite={false} />
     </mesh>
   );
 }
 
-function Chassis() {
+function Chassis({ bodyColor = BODY_COLOR }: { bodyColor?: string }) {
   return (
     <group position={[0, 0.08, 0]}>
       <mesh position={[0, 0, 0]} castShadow>
         <boxGeometry args={[0.44, 0.08, 0.48]} />
-        <meshStandardMaterial color={BODY_COLOR} metalness={0.6} roughness={0.4} />
+        <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.4} />
       </mesh>
       <mesh position={[0, 0.045, 0.02]} castShadow>
         <boxGeometry args={[0.38, 0.01, 0.42]} />

@@ -1,12 +1,13 @@
 import { useHRZStore, ZONE_COLORS, ZoneType, ZONE_SPEED } from '../../stores/hrzStore';
 import { useHRPStore, SPEED_LEVELS, speedToColor, DEFAULT_SPEED } from '../../stores/hrpStore';
 import { useRosStore } from '../../stores/rosStore';
-import { useWaypointStore } from '../../stores/waypointStore';
 import { useMapStore } from '../../stores/mapStore';
 import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useLabelStore } from '../../stores/labelStore';
 import { useA11yStore } from '../../stores/a11yStore';
+import { useFleetStore, FormationType } from '../../stores/fleetStore';
+import { usePoseSyncStore, startPoseSync, stopPoseSync } from '../../stores/poseSyncStore';
 import { t } from '../../i18n';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
@@ -25,15 +26,18 @@ export function ActionPanel({ mode }: ActionPanelProps) {
   const hrpSegmentSpeeds = useHRPStore((s) => s.segmentSpeeds);
   const hrpBlockedSegments = useHRPStore((s) => s.blockedSegments);
   const hrpSelectedSegment = useHRPStore((s) => s.selectedSegment);
-  const wpWaypoints = useWaypointStore((s) => s.waypoints);
-  const wpCurrentWaypointIdx = useWaypointStore((s) => s.currentWaypointIdx);
-  const wpNavigating = useWaypointStore((s) => s.navigating);
   const isMock = useRosStore((s) => s.isMock);
   const isConnected = useRosStore((s) => s.status) === 'connected';
   const editTool = useMapEditorStore((s) => s.tool);
   const brushSize = useMapEditorStore((s) => s.brushSize);
   const labels = useLabelStore((s) => s.labels);
   const locale = useA11yStore((s) => s.locale);
+  const fleetRobots = useFleetStore((s) => s.robots);
+  const activeRobotId = useFleetStore((s) => s.activeRobotId);
+  const formation = useFleetStore((s) => s.formation);
+  const formationSpacing = useFleetStore((s) => s.formationSpacing);
+  const poseSyncEnabled = usePoseSyncStore((s) => s.enabled);
+  const poseSyncUrl = usePoseSyncStore((s) => s.serverUrl);
 
   const mapTools: { key: MapTool; label: string; desc: string }[] = [
     { key: 'wall', label: t('Wall', locale), desc: t('Draw walls (click & drag)', locale) },
@@ -115,59 +119,118 @@ export function ActionPanel({ mode }: ActionPanelProps) {
   const handleStartNav = () => {
     if (isMock) { mockStartWaypointNav(); }
     else {
-      const wps = useWaypointStore.getState().waypoints;
-      if (wps.length > 0) {
-        publishNavGoal(wps[0].x, wps[0].z);
-        useWaypointStore.getState().setCurrentWaypointIdx(0);
-        useWaypointStore.getState().setNavigating(true);
+      const fleet = useFleetStore.getState();
+      const bot = fleet.robots.find((r) => r.id === fleet.activeRobotId);
+      if (bot && bot.waypoints.length > 0) {
+        publishNavGoal(bot.waypoints[0].x, bot.waypoints[0].z);
+        fleet.setCurrentWaypointIdx(fleet.activeRobotId, 0);
+        fleet.setNavigating(fleet.activeRobotId, true);
       }
     }
   };
 
   const handleCancelNav = () => {
     if (isMock) mockCancelNav();
-    else useWaypointStore.getState().clearNav();
+    else useFleetStore.getState().clearNav(useFleetStore.getState().activeRobotId);
   };
 
   const canPublish = isConnected;
 
   return (
     <div className="space-y-3" role="region" aria-label={t('Actions', locale)}>
-      {mode === 'navigate' && (
+      <div className="space-y-1">
+        <div className="text-xs text-gray-300 font-medium">Fleet</div>
+        <div className="flex items-center gap-1">
+          <select
+            value={activeRobotId}
+            onChange={(e) => useFleetStore.getState().setActiveRobot(e.target.value)}
+            className="flex-1 text-[10px] bg-gray-700 text-white px-1 py-1 rounded cursor-pointer"
+            aria-label="Select robot"
+          >
+            {fleetRobots.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+          <button onClick={() => useFleetStore.getState().addRobot()} className="text-[10px] bg-green-700/60 hover:bg-green-600/60 text-green-200 px-1.5 py-1 rounded" aria-label="Add robot">+</button>
+          {fleetRobots.length > 1 && (
+            <button onClick={() => useFleetStore.getState().removeRobot(activeRobotId)} className="text-[10px] bg-red-700/60 hover:bg-red-600/60 text-red-200 px-1.5 py-1 rounded" aria-label="Remove robot">−</button>
+          )}
+        </div>
+        <div className="text-xs text-gray-400">Robots: {fleetRobots.length}</div>
+      </div>
+      {fleetRobots.length > 1 && (
+        <div className="space-y-1">
+          <div className="text-xs text-gray-300 font-medium">Formation</div>
+          <div className="flex gap-1">
+            {(['line', 'column', 'v', 'circle'] as FormationType[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => useFleetStore.getState().setFormation(f)}
+                className={`flex-1 text-[10px] px-1 py-0.5 rounded cursor-pointer ${formation === f ? 'bg-blue-600 text-white font-bold' : 'bg-gray-700 text-gray-400 hover:text-white'}`}
+              >
+                {f === 'v' ? 'V' : f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-500">Spacing:</span>
+            <input type="range" min={3} max={20} value={formationSpacing * 10} onChange={(e) => useFleetStore.getState().setFormationSpacing(Number(e.target.value) / 10)} className="flex-1 h-1 accent-blue-500" />
+            <span className="text-[10px] text-gray-300 w-6">{formationSpacing.toFixed(1)}m</span>
+          </div>
+        </div>
+      )}
+      <div className="space-y-1">
+        <div className="text-xs text-gray-300 font-medium">Pose Sync</div>
+        <div className="flex items-center gap-1">
+          <input
+            type="text"
+            value={poseSyncUrl}
+            onChange={(e) => usePoseSyncStore.getState().setServerUrl(e.target.value)}
+            className="flex-1 text-[10px] bg-gray-700 text-white px-1.5 py-1 rounded min-w-0"
+            placeholder="ws://host:9091"
+          />
+          <button
+            onClick={() => poseSyncEnabled ? stopPoseSync() : startPoseSync(poseSyncUrl)}
+            className={`text-[10px] px-1.5 py-1 rounded cursor-pointer ${poseSyncEnabled ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}`}
+          >
+            {poseSyncEnabled ? 'Stop' : 'Sync'}
+          </button>
+        </div>
+      </div>
+      {mode === 'navigate' && (() => {
+        const activeBot = fleetRobots.find((r) => r.id === activeRobotId);
+        if (!activeBot) return null;
+        return (
         <>
           <div className="text-xs text-gray-400">
             {t('Left-click on the map to add waypoints. Robot will navigate to each in order.', locale)}
           </div>
-          {wpWaypoints.length > 0 && (
+          {activeBot.waypoints.length > 0 && (
             <div className="space-y-1">
               <div className="text-xs text-gray-300 font-medium">
-                {t('Waypoints', locale)} ({wpWaypoints.length})
+                {t('Waypoints', locale)} ({activeBot.waypoints.length})
               </div>
               <div className="max-h-48 overflow-y-auto space-y-0.5" role="list" aria-label={t('Waypoints', locale)}>
-                {wpWaypoints.map((wp, i) => (
+                {activeBot.waypoints.map((wp, i) => (
                   <div key={wp.id} role="listitem" className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                    wpNavigating && i === wpCurrentWaypointIdx ? 'bg-pink-600/40 ring-1 ring-pink-400'
-                    : wpNavigating && i < wpCurrentWaypointIdx ? 'bg-gray-600/30 opacity-50'
+                    activeBot.navigating && i === activeBot.currentWaypointIdx ? 'bg-pink-600/40 ring-1 ring-pink-400'
+                    : activeBot.navigating && i < activeBot.currentWaypointIdx ? 'bg-gray-600/30 opacity-50'
                     : 'bg-gray-700/50'
                   }`}>
-                    <span className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold shrink-0">{i + 1}</span>
+                    <span className="w-5 h-5 rounded-full text-white flex items-center justify-center text-[10px] font-bold shrink-0" style={{ backgroundColor: activeBot.color }}>{i + 1}</span>
                     <span className="text-gray-300 flex-1 truncate">({wp.x.toFixed(1)}, {wp.z.toFixed(1)})</span>
-                    {!wpNavigating && (
-                      <>
-                        <button onClick={() => useWaypointStore.getState().moveWaypoint(wp.id, 'up')} disabled={i === 0} className="text-gray-400 hover:text-white disabled:opacity-30 px-0.5" aria-label="Move up">▲</button>
-                        <button onClick={() => useWaypointStore.getState().moveWaypoint(wp.id, 'down')} disabled={i === wpWaypoints.length - 1} className="text-gray-400 hover:text-white disabled:opacity-30 px-0.5" aria-label="Move down">▼</button>
-                        <button onClick={() => useWaypointStore.getState().removeWaypoint(wp.id)} className="text-red-400 hover:text-red-300 px-0.5" aria-label="Remove waypoint">✕</button>
-                      </>
+                    {!activeBot.navigating && (
+                      <button onClick={() => useFleetStore.getState().removeWaypoint(activeRobotId, wp.id)} className="text-red-400 hover:text-red-300 px-0.5" aria-label="Remove waypoint">✕</button>
                     )}
                   </div>
                 ))}
               </div>
             </div>
           )}
-          {wpNavigating ? (
+          {activeBot.navigating ? (
             <>
               <div className="text-xs text-pink-400">
-                {t('Navigating: waypoint', locale)} {wpCurrentWaypointIdx + 1}/{wpWaypoints.length}
+                {t('Navigating: waypoint', locale)} {activeBot.currentWaypointIdx + 1}/{activeBot.waypoints.length}
               </div>
               <button onClick={handleCancelNav} className="w-full text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded" aria-label={t('Cancel Navigation', locale)}>
                 {t('Cancel Navigation', locale)}
@@ -175,11 +238,11 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             </>
           ) : (
             <>
-              <button onClick={handleStartNav} disabled={wpWaypoints.length === 0} className="w-full text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded" aria-label={t('Start Navigation', locale)}>
-                {t('Start Navigation', locale)} ({wpWaypoints.length} {t('waypoints', locale)})
+              <button onClick={handleStartNav} disabled={activeBot.waypoints.length === 0} className="w-full text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded" aria-label={t('Start Navigation', locale)}>
+                {t('Start Navigation', locale)} ({activeBot.waypoints.length} {t('waypoints', locale)})
               </button>
-              {wpWaypoints.length > 0 && (
-                <button onClick={() => useWaypointStore.getState().clearWaypoints()} className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded">
+              {activeBot.waypoints.length > 0 && (
+                <button onClick={() => useFleetStore.getState().clearWaypoints(activeRobotId)} className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded">
                   {t('Clear All Waypoints', locale)}
                 </button>
               )}
@@ -205,7 +268,8 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             )}
           </div>
         </>
-      )}
+        );
+      })()}
       {mode === 'mapedit' && isMock && (
         <>
           <div className="text-xs text-gray-400">{t('Edit the map by drawing walls and obstacles.', locale)}</div>

@@ -1,7 +1,7 @@
 import { Ros, Topic } from 'roslib';
 import { useRosStore } from '../stores/rosStore';
 import { useMapStore } from '../stores/mapStore';
-import { useRobotPoseStore } from '../stores/robotPoseStore';
+import { useFleetStore } from '../stores/fleetStore';
 import { useNavPlanStore } from '../stores/navPlanStore';
 import { OccupancyGridData } from '../utils/mapRenderer';
 import { quaternionToYaw } from '../utils/coordinate';
@@ -64,7 +64,7 @@ export function disconnect(): void {
   if (ros) { ros.close(); ros = null; }
   useRosStore.getState().setStatus('disconnected');
   useMapStore.getState().setGrid(null as unknown as OccupancyGridData);
-  useRobotPoseStore.getState().setPose({ x: 2, z: 2, yaw: 0 });
+  useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x: 2, z: 2, yaw: 0 });
   useNavPlanStore.getState().clearMoveBasePlan();
 }
 
@@ -108,12 +108,12 @@ function subscribeAll(): void {
     const q = m.pose.pose.orientation;
     const rosYaw = quaternionToYaw(q.x, q.y, q.z, q.w);
     const scenePos = rosToScene(p.x, p.y);
-    useRobotPoseStore.getState().setPose({
+    useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, {
       x: scenePos.x,
       z: scenePos.z,
       yaw: Math.PI / 2 - rosYaw,
     });
-    useRobotPoseStore.getState().setVelocity(
+    useFleetStore.getState().setVelocity(useFleetStore.getState().activeRobotId,
       m.twist.twist.linear.x,
       m.twist.twist.angular.z
     );

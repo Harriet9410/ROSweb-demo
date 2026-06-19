@@ -14,6 +14,7 @@ import { InflationOverlay } from './InflationOverlay';
 import { MapLabels3D } from './MapLabels3D';
 import { useLabelStore } from '../../stores/labelStore';
 import { useA11yStore } from '../../stores/a11yStore';
+import { useFleetStore } from '../../stores/fleetStore';
 import { t } from '../../i18n';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore, HRZZone } from '../../stores/hrzStore';
@@ -127,15 +128,18 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         lastPathPoint.current = pt;
       } else if (mode === 'navigate') {
         const rosStore = useRosStore.getState();
-        const wpStore = useWaypointStore.getState();
+        const fleet = useFleetStore.getState();
+        const activeId = fleet.activeRobotId;
+        const activeBot = fleet.robots.find((r) => r.id === activeId);
+        if (!activeBot) return;
         if (rosStore.isMock) {
-          if (wpStore.navigating) return;
-          wpStore.addWaypoint(pt);
+          if (activeBot.navigating) return;
+          fleet.addWaypoint(activeId, pt);
         } else if (rosStore.status === 'connected') {
           publishNavGoal(pt.x, pt.z);
-          wpStore.addWaypoint(pt);
-          wpStore.setCurrentWaypointIdx(0);
-          wpStore.setNavigating(true);
+          fleet.addWaypoint(activeId, pt);
+          fleet.setCurrentWaypointIdx(activeId, 0);
+          fleet.setNavigating(activeId, true);
         }
       } else if (mode === 'mapedit') {
         const isMock = useRosStore.getState().isMock;
@@ -295,12 +299,12 @@ function SceneEvents({ mode }: { mode: AppMode }) {
 }
 
 export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boolean }) {
-  const robotPose = useRobotPoseStore((s) => s.pose);
-  const waypoints = useWaypointStore((s) => s.waypoints);
-  const currentWaypointIdx = useWaypointStore((s) => s.currentWaypointIdx);
-  const navigating = useWaypointStore((s) => s.navigating);
-  const plannedPath = useWaypointStore((s) => s.plannedPath);
+  const robots = useFleetStore((s) => s.robots);
+  const activeRobotId = useFleetStore((s) => s.activeRobotId);
   const moveBasePlan = useNavPlanStore((s) => s.moveBasePlan);
+  const isMock = useRosStore((s) => s.isMock);
+
+  const activeRobot = robots.find((r) => r.id === activeRobotId);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -311,32 +315,39 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
       <ambientLight intensity={0.6} />
       <directionalLight position={[10, 20, 10]} intensity={0.8} />
       <MapFloor />
-      <RobotModel x={robotPose.x} z={robotPose.z} yaw={robotPose.yaw} />
+      {robots.map((r) => (
+        <RobotModel key={r.id} x={r.pose.x} z={r.pose.z} yaw={r.pose.yaw} color={r.color} isActive={r.id === activeRobotId} />
+      ))}
       <SceneEvents mode={mode} />
       {(mode === 'hrz') && <HRZEditor3D />}
-      {(mode === 'hrp') && (
+      {(mode === 'hrp') && activeRobot && (
         <>
           <HRZEditor3D />
-          <HRPEditor3D robotX={robotPose.x} robotZ={robotPose.z} />
+          <HRPEditor3D robotX={activeRobot.pose.x} robotZ={activeRobot.pose.z} />
         </>
       )}
       {mode === 'mapedit' && <MapEditPreview />}
-      {(mode === 'navigate') && waypoints.map((wp, i) => (
-        <WaypointMarker
-          key={wp.id}
-          waypoint={wp}
-          index={i}
-          isCurrent={navigating && i === currentWaypointIdx}
-          isReached={navigating && i < currentWaypointIdx}
-        />
+      {mode === 'navigate' && robots.map((r) => (
+        <group key={r.id}>
+          {r.waypoints.map((wp, i) => (
+            <WaypointMarker
+              key={wp.id}
+              waypoint={wp}
+              index={i}
+              isCurrent={r.navigating && i === r.currentWaypointIdx}
+              isReached={r.navigating && i < r.currentWaypointIdx}
+              color={r.color}
+            />
+          ))}
+          {r.waypoints.length >= 2 && (
+            <WaypointLines waypoints={r.waypoints} navigating={r.navigating} currentIdx={r.currentWaypointIdx} color={r.color} />
+          )}
+          {r.plannedPath.length >= 2 && r.navigating && (
+            <NavPathVisual path={r.plannedPath} color={r.color} />
+          )}
+        </group>
       ))}
-      {(mode === 'navigate') && waypoints.length >= 2 && (
-        <WaypointLines waypoints={waypoints} navigating={navigating} currentIdx={currentWaypointIdx} />
-      )}
-      {plannedPath.length >= 2 && navigating && (
-        <NavPathVisual path={plannedPath} color="#ff4081" />
-      )}
-      {moveBasePlan.length >= 2 && !useRosStore.getState().isMock && (
+      {moveBasePlan.length >= 2 && !isMock && (
         <NavPathVisual path={moveBasePlan} color="#ffffff" opacity={0.5} />
       )}
       <CameraControls mode={mode} followRobot={followRobot} />
@@ -370,13 +381,14 @@ function makeNumberTexture(num: number, bgColor: string): THREE.CanvasTexture {
   return tex;
 }
 
-function WaypointMarker({ waypoint, index, isCurrent, isReached }: {
+function WaypointMarker({ waypoint, index, isCurrent, isReached, color = '#42a5f5' }: {
   waypoint: Waypoint;
   index: number;
   isCurrent: boolean;
   isReached: boolean;
+  color?: string;
 }) {
-  const bgColor = isReached ? '#666666' : isCurrent ? '#ff4081' : '#42a5f5';
+  const bgColor = isReached ? '#666666' : isCurrent ? '#ff4081' : color;
   const texture = useMemo(() => makeNumberTexture(index, bgColor), [index, bgColor]);
 
   return (
@@ -392,10 +404,11 @@ function WaypointMarker({ waypoint, index, isCurrent, isReached }: {
   );
 }
 
-function WaypointLines({ waypoints, navigating, currentIdx }: {
+function WaypointLines({ waypoints, navigating, currentIdx, color: colorProp = '#42a5f5' }: {
   waypoints: Waypoint[];
   navigating: boolean;
   currentIdx: number;
+  color?: string;
 }) {
   return (
     <group>
@@ -404,7 +417,7 @@ function WaypointLines({ waypoints, navigating, currentIdx }: {
         const reached = navigating && i < currentIdx;
         const active = navigating && i === currentIdx;
         const positions = new Float32Array([wp.x, 0.05, wp.z, next.x, 0.05, next.z]);
-        const color = reached ? '#666666' : active ? '#ff4081' : '#42a5f5';
+        const color = reached ? '#666666' : active ? '#ff4081' : colorProp;
         return (
           <line key={`${wp.id}-${next.id}`}>
             <bufferGeometry>
