@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useLabelStore, MapLabel } from '../../stores/labelStore';
 

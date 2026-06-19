@@ -19,9 +19,8 @@ import { t } from '../../i18n';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore, HRZZone } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
-import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useRosStore } from '../../stores/rosStore';
-import { useWaypointStore, Waypoint } from '../../stores/waypointStore';
+import type { Waypoint } from '../../stores/waypointStore';
 import { useMapEditorStore } from '../../stores/mapEditorStore';
 import { useDragStore } from '../../stores/dragStore';
 import { useUndoStore } from '../../stores/undoStore';
@@ -271,8 +270,8 @@ function SceneEvents({ mode }: { mode: AppMode }) {
       }
     };
 
-    const onDblClick = (e: PointerEvent) => {
-      const pt = getScenePoint(e);
+    const onDblClick = (e: MouseEvent) => {
+      const pt = getScenePoint(e as unknown as PointerEvent);
       if (!pt) return;
       const text = prompt(t('Label text:', useA11yStore.getState().locale));
       if (text && text.trim()) {

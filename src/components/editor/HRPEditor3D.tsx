@@ -137,7 +137,7 @@ interface PathSegmentProps {
   onHover: (hovered: boolean) => void;
 }
 
-function PathSegment({ from, to, color, speed, index, isSelected, blocked, onClick, onHover }: PathSegmentProps) {
+function PathSegment({ from, to, color, speed, isSelected, blocked, onClick, onHover }: PathSegmentProps) {
   const positions = useMemo(() => {
     return new Float32Array([from.x, 0.05, from.z, to.x, 0.05, to.z]);
   }, [from, to]);

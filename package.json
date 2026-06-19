@@ -1,7 +1,31 @@
 {
-  "name": "mrrep-web",
+  "name": "webrop",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Web Robot Operation Platform — 3D browser-based robot navigation editor with HRZ zone drawing, HRP path planning, and ROS 1 integration",
+  "license": "MIT",
+  "author": "WebRop Contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Harriet9410/ROSweb-demo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Harriet9410/ROSweb-demo/issues"
+  },
+  "keywords": [
+    "robot",
+    "navigation",
+    "ros",
+    "ros1",
+    "3d",
+    "three.js",
+    "react",
+    "hrz",
+    "hrp",
+    "costmap",
+    "path-planning",
+    "occupancy-grid"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -2,6 +2,7 @@ import { useMapStore } from '../stores/mapStore';
 import { useRosStore } from '../stores/rosStore';
 import { useFleetStore } from '../stores/fleetStore';
 import { useToastStore } from '../stores/toastStore';
+import { useWaypointStore } from '../stores/waypointStore';
 import type { SegmentSpeed } from '../stores/hrpStore';
 import type { OccupancyGridData } from '../utils/mapRenderer';
 

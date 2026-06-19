@@ -113,7 +113,7 @@ function subscribeAll(): void {
       z: scenePos.z,
       yaw: Math.PI / 2 - rosYaw,
     });
-    useFleetStore.getState().setVelocity(useFleetStore.getState().activeRobotId,
+    useFleetStore.getState().setRobotVelocity(useFleetStore.getState().activeRobotId,
       m.twist.twist.linear.x,
       m.twist.twist.angular.z
     );

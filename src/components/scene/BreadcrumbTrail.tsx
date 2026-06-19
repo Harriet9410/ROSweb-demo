@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useTrailStore } from '../../stores/trailStore';

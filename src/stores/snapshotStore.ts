@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { useHRZStore, HRZZone, ZoneType } from './hrzStore';
+import { useHRZStore, HRZZone } from './hrzStore';
 import { useHRPStore, SegmentSpeed } from './hrpStore';
 import { useLabelStore, MapLabel } from './labelStore';
 import { Vec2 } from '../utils/coordinate';
