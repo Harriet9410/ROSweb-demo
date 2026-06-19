@@ -52,6 +52,12 @@ export function MiniMapBridge() {
     sizeRef.current = { mapW: grid.width * grid.resolution, mapH: grid.height * grid.resolution };
   }, [grid]);
 
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const planeRef = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+  const ndcRef = useRef([[-1, -1], [1, -1], [1, 1], [-1, 1]]);
+  const hitRef = useRef(new THREE.Vector3());
+  const ndcVecRef = useRef(new THREE.Vector2());
+
   useFrame(() => {
     const mapC = mapCanvasRef.current;
     if (!mapC) return;
@@ -64,22 +70,33 @@ export function MiniMapBridge() {
     const hrpStore = useHRPStore.getState();
     const navPlanStore = useNavPlanStore.getState();
 
-    const raycaster = new THREE.Raycaster();
-    const ndcCorners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const raycaster = raycasterRef.current;
+    const plane = planeRef.current;
     const viewportCorners: { x: number; z: number }[] = [];
-    for (const [nx, ny] of ndcCorners) {
-      raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
-      const hit = new THREE.Vector3();
-      if (raycaster.ray.intersectPlane(plane, hit)) {
-        viewportCorners.push({ x: hit.x, z: hit.z });
+    for (const [nx, ny] of ndcRef.current) {
+      ndcVecRef.current.set(nx, ny);
+      raycaster.setFromCamera(ndcVecRef.current, camera);
+      if (raycaster.ray.intersectPlane(plane, hitRef.current)) {
+        viewportCorners.push({ x: hitRef.current.x, z: hitRef.current.z });
       }
     }
 
+    const rx = robotPose.x;
+    const rz = robotPose.z;
+    const ry = robotPose.yaw;
+    const wpLen = wpStore.waypoints.length;
+    const hrpLen = hrpStore.path.length;
+    const navLen = navPlanStore.moveBasePlan.length;
+
+    let changed = miniMapData.mapCanvas !== mapC
+      || miniMapData.robotX !== rx || miniMapData.robotZ !== rz || miniMapData.robotYaw !== ry
+      || miniMapData.mapW !== mapW || miniMapData.mapH !== mapH
+      || miniMapData.wpLen !== wpLen || miniMapData.hrpLen !== hrpLen || miniMapData.navLen !== navLen;
+
     miniMapData.mapCanvas = mapC;
-    miniMapData.robotX = robotPose.x;
-    miniMapData.robotZ = robotPose.z;
-    miniMapData.robotYaw = robotPose.yaw;
+    miniMapData.robotX = rx;
+    miniMapData.robotZ = rz;
+    miniMapData.robotYaw = ry;
     miniMapData.waypoints = wpStore.waypoints;
     miniMapData.plannedPath = wpStore.navigating ? wpStore.plannedPath : [];
     miniMapData.hrpPath = hrpStore.path;
@@ -88,7 +105,10 @@ export function MiniMapBridge() {
     miniMapData.mapW = mapW;
     miniMapData.mapH = mapH;
     miniMapData.scale = scale;
-    miniMapData.version++;
+    miniMapData.wpLen = wpLen;
+    miniMapData.hrpLen = hrpLen;
+    miniMapData.navLen = navLen;
+    if (changed) miniMapData.version++;
   });
 
   return null;
@@ -107,6 +127,9 @@ interface MiniMapDataObj {
   mapW: number;
   mapH: number;
   scale: number;
+  wpLen: number;
+  hrpLen: number;
+  navLen: number;
   version: number;
 }
 
@@ -123,6 +146,9 @@ const miniMapData: MiniMapDataObj = {
   mapW: 10,
   mapH: 10,
   scale: 1,
+  wpLen: 0,
+  hrpLen: 0,
+  navLen: 0,
   version: 0,
 };
 

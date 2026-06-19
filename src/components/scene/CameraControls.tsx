@@ -10,12 +10,13 @@ interface CameraControlsProps {
   followRobot: boolean;
 }
 
+const lerpTarget = new THREE.Vector3();
+
 export function CameraControls({ mode, followRobot }: CameraControlsProps) {
   const controlsRef = useRef<any>(null);
   const { camera } = useThree();
-  const camPos = useCameraStore((s) => s.position);
-  const camTgt = useCameraStore((s) => s.target);
-  const appliedRef = useRef<string>('');
+  const appliedKey = useRef('');
+  const snapshotApplied = useRef(false);
 
   useEffect(() => {
     if (controlsRef.current) {
@@ -28,29 +29,36 @@ export function CameraControls({ mode, followRobot }: CameraControlsProps) {
   }, [mode]);
 
   useEffect(() => {
-    const key = `${camPos.join(',')}-${camTgt.join(',')}`;
-    if (key === appliedRef.current) return;
-    if (controlsRef.current) {
-      camera.position.set(...camPos);
-      controlsRef.current.target.set(...camTgt);
+    const cam = useCameraStore.getState();
+    if (controlsRef.current && !snapshotApplied.current) {
+      camera.position.set(...cam.position);
+      controlsRef.current.target.set(...cam.target);
       controlsRef.current.update();
-      appliedRef.current = key;
+      appliedKey.current = `${cam.position.join(',')}-${cam.target.join(',')}`;
+      snapshotApplied.current = true;
     }
-  }, [camPos, camTgt, camera]);
+  }, [camera]);
+
+  useEffect(() => {
+    snapshotApplied.current = false;
+  }, [useCameraStore.getState().position, useCameraStore.getState().target]);
 
   useFrame(() => {
-    if (controlsRef.current) {
-      if (followRobot) {
-        const pose = useRobotPoseStore.getState().pose;
-        controlsRef.current.target.lerp(new THREE.Vector3(pose.x, 0, pose.z), 0.05);
-      }
-      const t = controlsRef.current.target;
-      const p = camera.position;
-      const key = `${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}-${t.x.toFixed(2)},${t.y.toFixed(2)},${t.z.toFixed(2)}`;
-      if (key !== appliedRef.current) {
-        useCameraStore.getState().setPosition([p.x, p.y, p.z]);
-        useCameraStore.getState().setTarget([t.x, t.y, t.z]);
-      }
+    if (!controlsRef.current) return;
+
+    if (followRobot) {
+      const pose = useRobotPoseStore.getState().pose;
+      lerpTarget.set(pose.x, 0, pose.z);
+      controlsRef.current.target.lerp(lerpTarget, 0.05);
+    }
+
+    const t = controlsRef.current.target;
+    const p = camera.position;
+    const key = `${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}-${t.x.toFixed(2)},${t.y.toFixed(2)},${t.z.toFixed(2)}`;
+    if (key !== appliedKey.current) {
+      appliedKey.current = key;
+      useCameraStore.getState().setPosition([p.x, p.y, p.z]);
+      useCameraStore.getState().setTarget([t.x, t.y, t.z]);
     }
   });
 
@@ -62,7 +70,6 @@ export function CameraControls({ mode, followRobot }: CameraControlsProps) {
       minDistance={1}
       maxDistance={100}
       maxPolarAngle={Math.PI / 2.1}
-      target={camTgt}
     />
   );
 }

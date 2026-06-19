@@ -1,12 +1,12 @@
 import { useHRZStore, ZONE_COLORS, ZoneType, ZONE_SPEED } from '../../stores/hrzStore';
-import { useHRPStore, SPEED_LEVELS, speedToColor, SegmentSpeed, DEFAULT_SPEED } from '../../stores/hrpStore';
+import { useHRPStore, SPEED_LEVELS, speedToColor, DEFAULT_SPEED } from '../../stores/hrpStore';
 import { useRosStore } from '../../stores/rosStore';
 import { useWaypointStore } from '../../stores/waypointStore';
 import { useMapStore } from '../../stores/mapStore';
 import { useMapEditorStore, MapTool } from '../../stores/mapEditorStore';
 import { useUndoStore } from '../../stores/undoStore';
 import { useMeasureStore } from '../../stores/measureStore';
-import { publishHRZZones, publishHRPPath, publishHRPSpeeds } from '../../ros/connection';
+import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
 import { sceneToRos, dist } from '../../utils/coordinate';
 import { checkPathReachability } from '../../utils/pathCheck';
@@ -24,16 +24,24 @@ const mapTools: { key: MapTool; label: string; desc: string }[] = [
 ];
 
 export function ActionPanel({ mode }: ActionPanelProps) {
-  const hrz = useHRZStore();
-  const hrp = useHRPStore();
-  const wpStore = useWaypointStore();
+  const hrzZones = useHRZStore((s) => s.zones);
+  const hrzCurrentVertices = useHRZStore((s) => s.currentVertices);
+  const hrzCurrentZoneType = useHRZStore((s) => s.currentZoneType);
+  const hrpPath = useHRPStore((s) => s.path);
+  const hrpSegmentSpeeds = useHRPStore((s) => s.segmentSpeeds);
+  const hrpBlockedSegments = useHRPStore((s) => s.blockedSegments);
+  const hrpSelectedSegment = useHRPStore((s) => s.selectedSegment);
+  const wpWaypoints = useWaypointStore((s) => s.waypoints);
+  const wpCurrentWaypointIdx = useWaypointStore((s) => s.currentWaypointIdx);
+  const wpNavigating = useWaypointStore((s) => s.navigating);
   const isMock = useRosStore((s) => s.isMock);
   const isConnected = useRosStore((s) => s.status) === 'connected';
   const editTool = useMapEditorStore((s) => s.tool);
   const brushSize = useMapEditorStore((s) => s.brushSize);
 
   const handlePublishHRZ = () => {
-    const data = hrz.zones.map((z) => ({
+    const zones = useHRZStore.getState().zones;
+    const data = zones.map((z) => ({
       id: z.id,
       vertices: z.vertices.map((v) => sceneToRos(v.x, v.z)),
     }));
@@ -46,31 +54,36 @@ export function ActionPanel({ mode }: ActionPanelProps) {
   };
 
   const handlePublishHRP = () => {
-    if (hrp.path.length < 2) return;
-    const rosPoints = hrp.path.map((p) => sceneToRos(p.x, p.z));
+    const path = useHRPStore.getState().path;
+    const speeds = useHRPStore.getState().segmentSpeeds;
+    if (path.length < 2) return;
+    const rosPoints = path.map((p) => sceneToRos(p.x, p.z));
     if (isMock) {
-      mockPublishHRPPath(rosPoints, hrp.segmentSpeeds);
+      mockPublishHRPPath(rosPoints, speeds);
     } else {
       publishHRPPath(rosPoints);
-      publishHRPSpeeds(hrp.segmentSpeeds);
+      publishHRPSpeeds(speeds);
     }
   };
 
   const handleCheckPath = () => {
     const grid = useMapStore.getState().grid;
-    if (!grid || hrp.path.length < 2) return;
-    const blocked = checkPathReachability(grid, hrp.path);
-    hrp.setBlockedSegments(blocked);
+    const path = useHRPStore.getState().path;
+    if (!grid || path.length < 2) return;
+    const blocked = checkPathReachability(grid, path);
+    useHRPStore.getState().setBlockedSegments(blocked);
   };
 
   const handleAutoSpeed = () => {
-    const zones = hrz.zones;
-    if (zones.length === 0 || hrp.path.length < 2) return;
+    const zones = useHRZStore.getState().zones;
+    const path = useHRPStore.getState().path;
+    const speeds = useHRPStore.getState().segmentSpeeds;
+    if (zones.length === 0 || path.length < 2) return;
     useUndoStore.getState().pushUndo();
-    const newSpeeds = [...hrp.segmentSpeeds];
-    for (let i = 0; i < hrp.path.length - 1; i++) {
-      const midX = (hrp.path[i].x + hrp.path[i + 1].x) / 2;
-      const midZ = (hrp.path[i].z + hrp.path[i + 1].z) / 2;
+    const newSpeeds = [...speeds];
+    for (let i = 0; i < path.length - 1; i++) {
+      const midX = (path[i].x + path[i + 1].x) / 2;
+      const midZ = (path[i].z + path[i + 1].z) / 2;
       let matchedSpeed: number | null = null;
       for (const zone of zones) {
         if (pointInPolygon(midX, midZ, zone.vertices)) {
@@ -91,17 +104,17 @@ export function ActionPanel({ mode }: ActionPanelProps) {
 
   const calcTotalDist = () => {
     let total = 0;
-    for (let i = 0; i < hrp.path.length - 1; i++) {
-      total += dist(hrp.path[i], hrp.path[i + 1]);
+    for (let i = 0; i < hrpPath.length - 1; i++) {
+      total += dist(hrpPath[i], hrpPath[i + 1]);
     }
     return total;
   };
 
   const calcEstTime = () => {
     let totalSec = 0;
-    for (let i = 0; i < hrp.path.length - 1; i++) {
-      const d = dist(hrp.path[i], hrp.path[i + 1]);
-      const speed = hrp.segmentSpeeds[i] || DEFAULT_SPEED;
+    for (let i = 0; i < hrpPath.length - 1; i++) {
+      const d = dist(hrpPath[i], hrpPath[i + 1]);
+      const speed = hrpSegmentSpeeds[i] || DEFAULT_SPEED;
       totalSec += speed > 0 ? d / speed : 0;
     }
     if (totalSec < 60) return `${totalSec.toFixed(0)}s`;
@@ -114,12 +127,12 @@ export function ActionPanel({ mode }: ActionPanelProps) {
     if (isMock) {
       mockStartWaypointNav();
     } else {
-      const wps = wpStore.waypoints;
+      const wps = useWaypointStore.getState().waypoints;
       if (wps.length > 0) {
         const first = wps[0];
         publishNavGoal(first.x, first.z);
-        wpStore.setCurrentWaypointIdx(0);
-        wpStore.setNavigating(true);
+        useWaypointStore.getState().setCurrentWaypointIdx(0);
+        useWaypointStore.getState().setNavigating(true);
       }
     }
   };
@@ -128,7 +141,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
     if (isMock) {
       mockCancelNav();
     } else {
-      wpStore.clearNav();
+      useWaypointStore.getState().clearNav();
     }
   };
 
@@ -155,19 +168,19 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           <div className="text-xs text-gray-400">
             Left-click on the map to add waypoints. Robot will navigate to each in order.
           </div>
-          {wpStore.waypoints.length > 0 && (
+          {wpWaypoints.length > 0 && (
             <div className="space-y-1">
               <div className="text-xs text-gray-300 font-medium">
-                Waypoints ({wpStore.waypoints.length})
+                Waypoints ({wpWaypoints.length})
               </div>
               <div className="max-h-48 overflow-y-auto space-y-0.5">
-                {wpStore.waypoints.map((wp, i) => (
+                {wpWaypoints.map((wp, i) => (
                   <div
                     key={wp.id}
                     className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                      wpStore.navigating && i === wpStore.currentWaypointIdx
+                      wpNavigating && i === wpCurrentWaypointIdx
                         ? 'bg-pink-600/40 ring-1 ring-pink-400'
-                        : wpStore.navigating && i < wpStore.currentWaypointIdx
+                        : wpNavigating && i < wpCurrentWaypointIdx
                         ? 'bg-gray-600/30 opacity-50'
                         : 'bg-gray-700/50'
                     }`}
@@ -178,24 +191,24 @@ export function ActionPanel({ mode }: ActionPanelProps) {
                     <span className="text-gray-300 flex-1 truncate">
                       ({wp.x.toFixed(1)}, {wp.z.toFixed(1)})
                     </span>
-                    {!wpStore.navigating && (
+                    {!wpNavigating && (
                       <>
                         <button
-                          onClick={() => wpStore.moveWaypoint(wp.id, 'up')}
+                          onClick={() => useWaypointStore.getState().moveWaypoint(wp.id, 'up')}
                           disabled={i === 0}
                           className="text-gray-400 hover:text-white disabled:opacity-30 px-0.5"
                         >
                           ▲
                         </button>
                         <button
-                          onClick={() => wpStore.moveWaypoint(wp.id, 'down')}
-                          disabled={i === wpStore.waypoints.length - 1}
+                          onClick={() => useWaypointStore.getState().moveWaypoint(wp.id, 'down')}
+                          disabled={i === wpWaypoints.length - 1}
                           className="text-gray-400 hover:text-white disabled:opacity-30 px-0.5"
                         >
                           ▼
                         </button>
                         <button
-                          onClick={() => wpStore.removeWaypoint(wp.id)}
+                          onClick={() => useWaypointStore.getState().removeWaypoint(wp.id)}
                           className="text-red-400 hover:text-red-300 px-0.5"
                         >
                           ✕
@@ -207,10 +220,10 @@ export function ActionPanel({ mode }: ActionPanelProps) {
               </div>
             </div>
           )}
-          {wpStore.navigating ? (
+          {wpNavigating ? (
             <>
               <div className="text-xs text-pink-400">
-                Navigating: waypoint {wpStore.currentWaypointIdx + 1}/{wpStore.waypoints.length}
+                Navigating: waypoint {wpCurrentWaypointIdx + 1}/{wpWaypoints.length}
               </div>
               <button
                 onClick={handleCancelNav}
@@ -223,14 +236,14 @@ export function ActionPanel({ mode }: ActionPanelProps) {
             <>
               <button
                 onClick={handleStartNav}
-                disabled={wpStore.waypoints.length === 0}
+                disabled={wpWaypoints.length === 0}
                 className="w-full text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded"
               >
-                Start Navigation ({wpStore.waypoints.length} waypoints)
+                Start Navigation ({wpWaypoints.length} waypoints)
               </button>
-              {wpStore.waypoints.length > 0 && (
+              {wpWaypoints.length > 0 && (
                 <button
-                  onClick={() => wpStore.clearWaypoints()}
+                  onClick={() => useWaypointStore.getState().clearWaypoints()}
                   className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded"
                 >
                   Clear All Waypoints
@@ -292,43 +305,32 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           <div className="text-xs text-gray-400">
             Left-click to add vertices. Click the first vertex (yellow) to close. Hold Shift to snap to 0.5m grid.
           </div>
-          <div className="space-y-1">
-            <div className="text-xs text-gray-300 font-medium">Zone Type</div>
-            <div className="flex gap-1">
-              {(['forbidden', 'slow', 'charging'] as ZoneType[]).map((zt) => (
-                <button
-                  key={zt}
-                  onClick={() => hrz.setCurrentZoneType(zt)}
-                  className={`flex-1 text-[10px] px-1.5 py-1 rounded ${
-                    hrz.currentZoneType === zt ? 'ring-2 ring-white' : ''
-                  }`}
-                  style={{ backgroundColor: ZONE_COLORS[zt] + '99', color: '#fff' }}
-                >
-                  {zt}
-                </button>
-              ))}
-            </div>
-          </div>
-          {hrz.zones.length > 0 && (
+
+          {hrzZones.length > 0 && (
             <div className="max-h-32 overflow-y-auto space-y-0.5">
-              {hrz.zones.map((z) => (
+              {hrzZones.map((z) => (
                 <div key={z.id} className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-gray-700/50">
                   <span
                     className="w-3 h-3 rounded shrink-0"
                     style={{ backgroundColor: ZONE_COLORS[z.zoneType] }}
                   />
-                  <span className="text-gray-300 flex-1">{z.zoneType}</span>
-                  <select
-                    value={z.zoneType}
-                    onChange={(e) => hrz.setZoneType(z.id, e.target.value as ZoneType)}
-                    className="text-[10px] bg-gray-600 text-white px-1 py-0.5 rounded"
-                  >
-                    <option value="forbidden">forbidden</option>
-                    <option value="slow">slow</option>
-                    <option value="charging">charging</option>
-                  </select>
+                  <div className="flex gap-1 flex-1">
+                    {(['forbidden', 'slow', 'charging'] as ZoneType[]).map((zt) => (
+                      <button
+                        key={zt}
+                        type="button"
+                        onMouseDown={(e) => { e.stopPropagation(); useUndoStore.getState().pushUndo(); useHRZStore.getState().setZoneType(z.id, zt); }}
+                        className={`flex-1 text-[10px] px-1 py-0.5 rounded cursor-pointer select-none ${
+                          z.zoneType === zt ? 'ring-2 ring-white font-bold' : 'opacity-50 hover:opacity-90'
+                        }`}
+                        style={{ backgroundColor: ZONE_COLORS[zt] + 'cc', color: '#fff' }}
+                      >
+                        {zt}
+                      </button>
+                    ))}
+                  </div>
                   <button
-                    onClick={() => { useUndoStore.getState().pushUndo(); hrz.removeZone(z.id); }}
+                    onClick={() => { useUndoStore.getState().pushUndo(); useHRZStore.getState().removeZone(z.id); }}
                     className="text-red-400 hover:text-red-300 px-0.5"
                   >
                     ✕
@@ -339,25 +341,25 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           )}
           <button
             onClick={handlePublishHRZ}
-            disabled={!canPublish || hrz.zones.length === 0}
+            disabled={!canPublish || hrzZones.length === 0}
             className="w-full text-xs bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded"
           >
-            {isMock ? 'Apply Zones to Map' : 'Publish HRZ Zones'} ({hrz.zones.length})
+            {isMock ? 'Apply Zones to Map' : 'Publish HRZ Zones'} ({hrzZones.length})
           </button>
           <button
-            onClick={hrz.cancelDrawing}
+            onClick={() => useHRZStore.getState().cancelDrawing()}
             className="w-full text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1.5 rounded"
           >
             Cancel Drawing
           </button>
           <button
-            onClick={() => { useUndoStore.getState().pushUndo(); hrz.clearAll(); }}
+            onClick={() => { useUndoStore.getState().pushUndo(); useHRZStore.getState().clearAll(); }}
             className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded"
           >
             Clear All Zones
           </button>
           <div className="text-xs text-gray-500">
-            Zones: {hrz.zones.length} | Drawing: {hrz.currentVertices.length} pts
+            Zones: {hrzZones.length} | Drawing: {hrzCurrentVertices.length} pts
           </div>
         </>
       )}
@@ -368,18 +370,18 @@ export function ActionPanel({ mode }: ActionPanelProps) {
               ? 'Draw a path by clicking & dragging. Robot will follow with obstacle avoidance. Hold Shift to snap to 0.5m grid.'
               : 'Draw a path by clicking & dragging, then publish to ROS. Hold Shift to snap to 0.5m grid.'}
           </div>
-          {hrp.path.length >= 2 && (
+          {hrpPath.length >= 2 && (
             <div className="space-y-1.5">
               <div className="text-xs text-gray-300 font-medium">Segment Speeds</div>
               <div className="text-xs text-gray-500">
                 Click segment on map or below to cycle speed. Yellow=slow → Green=fast.
               </div>
               <div className="max-h-40 overflow-y-auto space-y-0.5">
-                {hrp.segmentSpeeds.map((speed, i) => (
+                {hrpSegmentSpeeds.map((speed, i) => (
                   <div
                     key={i}
                     className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                      hrp.selectedSegment === i
+                      hrpSelectedSegment === i
                         ? 'bg-blue-600/40 ring-1 ring-blue-400'
                         : 'bg-gray-700/50'
                     }`}
@@ -390,27 +392,27 @@ export function ActionPanel({ mode }: ActionPanelProps) {
                       min={0}
                       max={SPEED_LEVELS.length - 1}
                       value={SPEED_LEVELS.indexOf(speed as any) === -1 ? 4 : SPEED_LEVELS.indexOf(speed as any)}
-                      onChange={(e) => hrp.setSegmentSpeed(i, SPEED_LEVELS[Number(e.target.value)])}
+                      onChange={(e) => useHRPStore.getState().setSegmentSpeed(i, SPEED_LEVELS[Number(e.target.value)])}
                       className="flex-1 h-1 accent-green-500"
                     />
                     <span
                       className="px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 min-w-[52px] text-center"
-                      style={{ backgroundColor: (hrp.blockedSegments[i] ? '#dc2626' : speedToColor(speed)) + 'cc', color: '#fff' }}
+                      style={{ backgroundColor: (hrpBlockedSegments[i] ? '#dc2626' : speedToColor(speed)) + 'cc', color: '#fff' }}
                     >
-                      {hrp.blockedSegments[i] ? 'BLOCKED' : `${speed.toFixed(1)} m/s`}
+                      {hrpBlockedSegments[i] ? 'BLOCKED' : `${speed.toFixed(1)} m/s`}
                     </span>
                   </div>
                 ))}
               </div>
               <div className="flex gap-1">
                 <button
-                  onClick={() => hrp.segmentSpeeds.forEach((_, i) => hrp.setSegmentSpeed(i, SPEED_LEVELS[SPEED_LEVELS.length - 1]))}
+                  onClick={() => hrpSegmentSpeeds.forEach((_, i) => useHRPStore.getState().setSegmentSpeed(i, SPEED_LEVELS[SPEED_LEVELS.length - 1]))}
                   className="flex-1 text-[10px] bg-green-700/60 hover:bg-green-600/60 text-green-200 px-1.5 py-1 rounded"
                 >
                   All {SPEED_LEVELS[SPEED_LEVELS.length - 1]} m/s
                 </button>
                 <button
-                  onClick={() => hrp.segmentSpeeds.forEach((_, i) => hrp.setSegmentSpeed(i, SPEED_LEVELS[0]))}
+                  onClick={() => hrpSegmentSpeeds.forEach((_, i) => useHRPStore.getState().setSegmentSpeed(i, SPEED_LEVELS[0]))}
                   className="flex-1 text-[10px] bg-yellow-700/60 hover:bg-yellow-600/60 text-yellow-200 px-1.5 py-1 rounded"
                 >
                   All {SPEED_LEVELS[0]} m/s
@@ -420,16 +422,16 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           )}
           <button
             onClick={handleCheckPath}
-            disabled={hrp.path.length < 2}
+            disabled={hrpPath.length < 2}
             className="w-full text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded"
           >
-            Check Path ({hrp.path.length} pts)
+            Check Path ({hrpPath.length} pts)
           </button>
-          {hrp.blockedSegments.length > 0 && (
+          {hrpBlockedSegments.length > 0 && (
             <div className="text-xs">
-              {hrp.blockedSegments.some((b) => b) ? (
+              {hrpBlockedSegments.some((b) => b) ? (
                 <span className="text-red-400">
-                  Blocked segments: {hrp.blockedSegments.map((b, i) => b ? i + 1 : null).filter(Boolean).join(', ')}
+                  Blocked segments: {hrpBlockedSegments.map((b, i) => b ? i + 1 : null).filter(Boolean).join(', ')}
                 </span>
               ) : (
                 <span className="text-green-400">All segments reachable</span>
@@ -438,21 +440,21 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           )}
           <button
             onClick={handlePublishHRP}
-            disabled={!canPublish || hrp.path.length < 2}
+            disabled={!canPublish || hrpPath.length < 2}
             className="w-full text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded"
           >
-            {isMock ? 'Follow Drawn Path' : 'Publish HRP Path'} ({hrp.path.length} pts)
+            {isMock ? 'Follow Drawn Path' : 'Publish HRP Path'} ({hrpPath.length} pts)
           </button>
           <button
-            onClick={() => { useUndoStore.getState().pushUndo(); hrp.clearPath(); }}
+            onClick={() => { useUndoStore.getState().pushUndo(); useHRPStore.getState().clearPath(); }}
             className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded"
           >
             Clear Path
           </button>
           <div className="text-xs text-gray-500">
-            Points: {hrp.path.length} | Segments: {hrp.segmentSpeeds.length}
+            Points: {hrpPath.length} | Segments: {hrpSegmentSpeeds.length}
           </div>
-          {hrp.path.length >= 2 && (
+          {hrpPath.length >= 2 && (
             <div className="space-y-1">
               <button
                 onClick={handleAutoSpeed}

@@ -15,7 +15,7 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
   const isMock = useRosStore((s) => s.isMock);
 
   return (
-    <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col h-full overflow-hidden">
+    <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col h-full overflow-hidden relative z-10">
       <div className="p-3 border-b border-gray-700 shrink-0">
         <h1 className="text-sm font-bold text-white">MRReP / MRHaD</h1>
         <p className="text-xs text-gray-400 mt-0.5">Web Editor</p>
