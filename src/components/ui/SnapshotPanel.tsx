@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useSnapshotStore } from '../../stores/snapshotStore';
 import { useCameraStore } from '../../stores/cameraStore';
+import { useA11yStore } from '../../stores/a11yStore';
+import { t } from '../../i18n';
 
 export function SnapshotPanel() {
   const snapshots = useSnapshotStore((s) => s.snapshots);
   const saveSnapshot = useSnapshotStore((s) => s.saveSnapshot);
   const loadSnapshot = useSnapshotStore((s) => s.loadSnapshot);
   const deleteSnapshot = useSnapshotStore((s) => s.deleteSnapshot);
+  const locale = useA11yStore((s) => s.locale);
   const [name, setName] = useState('');
   const [loadedId, setLoadedId] = useState<string | null>(null);
 
@@ -35,51 +38,39 @@ export function SnapshotPanel() {
 
   return (
     <div className="p-3 border-b border-gray-700">
-      <div className="text-xs text-gray-400 mb-1.5 font-medium">Snapshots</div>
+      <div className="text-xs text-gray-400 mb-1.5 font-medium">{t('Snapshots', locale)}</div>
       <div className="flex gap-1 mb-2">
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Snapshot name..."
+          placeholder={t('Snapshot name...', locale)}
           className="flex-1 text-xs bg-gray-700 text-white px-2 py-1 rounded outline-none placeholder-gray-500 min-w-0"
+          aria-label={t('Snapshot name...', locale)}
         />
         <button
           onClick={handleSave}
           disabled={!name.trim()}
           className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-2 py-1 rounded shrink-0"
+          aria-label={t('Save', locale)}
         >
-          Save
+          {t('Save', locale)}
         </button>
       </div>
       {snapshots.length === 0 ? (
-        <div className="text-xs text-gray-600">No snapshots yet</div>
+        <div className="text-xs text-gray-600">{t('No snapshots yet', locale)}</div>
       ) : (
-        <div className="max-h-40 overflow-y-auto space-y-1">
+        <div className="max-h-40 overflow-y-auto space-y-1" role="list" aria-label={t('Snapshots', locale)}>
           {snapshots.map((snap) => (
-            <div
-              key={snap.id}
-              className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                loadedId === snap.id ? 'bg-blue-600/30 ring-1 ring-blue-400' : 'bg-gray-700/50'
-              }`}
-            >
-              <button
-                onClick={() => handleLoad(snap.id)}
-                className="flex-1 text-left text-gray-200 hover:text-white truncate"
-                title={snap.name}
-              >
+            <div key={snap.id} role="listitem" className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${loadedId === snap.id ? 'bg-blue-600/30 ring-1 ring-blue-400' : 'bg-gray-700/50'}`}>
+              <button onClick={() => handleLoad(snap.id)} className="flex-1 text-left text-gray-200 hover:text-white truncate" title={snap.name} aria-label={`Load snapshot ${snap.name}`}>
                 {snap.name}
               </button>
               <span className="text-gray-500 text-[10px] shrink-0">
                 {new Date(snap.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
-              <button
-                onClick={() => deleteSnapshot(snap.id)}
-                className="text-red-400 hover:text-red-300 px-0.5 shrink-0"
-              >
-                ✕
-              </button>
+              <button onClick={() => deleteSnapshot(snap.id)} className="text-red-400 hover:text-red-300 px-0.5 shrink-0" aria-label="Delete snapshot">✕</button>
             </div>
           ))}
         </div>

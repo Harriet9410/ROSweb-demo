@@ -19,3 +19,54 @@ body,
 .animate-fade-in {
   animation: fade-in 0.2s ease-out;
 }
+
+.hc-mode {
+  --hc-bg: #000000;
+  --hc-border: #ffffff;
+  --hc-text: #ffffff;
+  --hc-muted: #cccccc;
+  --hc-accent: #00e5ff;
+}
+
+.hc-mode .bg-gray-700,
+.hc-mode .bg-gray-800,
+.hc-mode .bg-gray-900 {
+  background-color: var(--hc-bg) !important;
+}
+
+.hc-mode .border-gray-600,
+.hc-mode .border-gray-700 {
+  border-color: var(--hc-border) !important;
+}
+
+.hc-mode .text-gray-300,
+.hc-mode .text-gray-400,
+.hc-mode .text-gray-500 {
+  color: var(--hc-muted) !important;
+}
+
+.hc-mode .text-white,
+.hc-mode .text-gray-200 {
+  color: var(--hc-text) !important;
+}
+
+.hc-mode button {
+  border: 1px solid var(--hc-border) !important;
+  outline-offset: 2px;
+}
+
+.hc-mode button:focus-visible {
+  outline: 3px solid var(--hc-accent) !important;
+  outline-offset: 2px;
+}
+
+.hc-mode input,
+.hc-mode select {
+  border: 2px solid var(--hc-border) !important;
+  background: var(--hc-bg) !important;
+  color: var(--hc-text) !important;
+}
+
+.hc-mode button:hover {
+  outline: 2px solid var(--hc-accent) !important;
+}

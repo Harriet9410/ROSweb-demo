@@ -10,6 +10,7 @@ import { useRosStore } from './stores/rosStore';
 import { useUndoStore } from './stores/undoStore';
 import { useTeleopStore } from './stores/teleopStore';
 import { useLabelStore } from './stores/labelStore';
+import { useA11yStore } from './stores/a11yStore';
 import { save, load } from './utils/persistence';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
   const loadPath = useHRPStore((s) => s.loadPath);
   const loadLabels = useLabelStore((s) => s.loadLabels);
   const isMock = useRosStore((s) => s.isMock);
+  const highContrast = useA11yStore((s) => s.highContrast);
 
   useEffect(() => {
     const data = load();
@@ -33,7 +35,7 @@ function App() {
 
   useEffect(() => {
     save(hrzZones, hrpPath, mapLabels);
-  }, [hrzZones, hrpPath]);
+  }, [hrzZones, hrpPath, mapLabels]);
 
   useEffect(() => {
     if (!isMock && mode === 'mapedit') {
@@ -79,7 +81,7 @@ function App() {
   const toggleTeleop = () => useTeleopStore.getState().setTeleopEnabled(!teleopEnabled);
 
   return (
-    <div className="flex h-screen w-screen bg-gray-900 text-white">
+    <div className={`flex h-screen w-screen bg-gray-900 text-white ${highContrast ? 'hc-mode' : ''}`}>
       <Sidebar mode={mode} onModeChange={setMode} />
       <div className="flex-1 flex flex-col">
         <div className="flex-1">

@@ -13,6 +13,8 @@ import { BreadcrumbTrail } from './BreadcrumbTrail';
 import { InflationOverlay } from './InflationOverlay';
 import { MapLabels3D } from './MapLabels3D';
 import { useLabelStore } from '../../stores/labelStore';
+import { useA11yStore } from '../../stores/a11yStore';
+import { t } from '../../i18n';
 import type { AppMode } from '../ui/ModeSelector';
 import { useHRZStore, HRZZone } from '../../stores/hrzStore';
 import { useHRPStore } from '../../stores/hrpStore';
@@ -268,7 +270,7 @@ function SceneEvents({ mode }: { mode: AppMode }) {
     const onDblClick = (e: PointerEvent) => {
       const pt = getScenePoint(e);
       if (!pt) return;
-      const text = prompt('Label text:');
+      const text = prompt(t('Label text:', useA11yStore.getState().locale));
       if (text && text.trim()) {
         useLabelStore.getState().addLabel(text.trim(), pt);
       }

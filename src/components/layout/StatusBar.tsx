@@ -6,7 +6,23 @@ import { useUndoStore } from '../../stores/undoStore';
 import { useRobotPoseStore } from '../../stores/robotPoseStore';
 import { useTeleopStore } from '../../stores/teleopStore';
 import { useInflationStore } from '../../stores/inflationStore';
+import { useA11yStore } from '../../stores/a11yStore';
+import { t, Locale } from '../../i18n';
 import { setCameraPreset, CameraPreset } from '../scene/CameraControls';
+
+function getShortcuts(locale: Locale) {
+  return [
+    { keys: 'W/A/S/D', desc: t('Teleop (forward/left/back/right)', locale) },
+    { keys: 'Ctrl+Z', desc: t('Undo', locale) },
+    { keys: 'Ctrl+Y', desc: t('Redo', locale) },
+    { keys: 'Shift+Click', desc: t('Snap to 0.5m grid (HRZ/HRP)', locale) },
+    { keys: t('Left Click', locale), desc: t('Add waypoint / draw / place', locale) },
+    { keys: t('Right Click', locale), desc: t('Rotate view (drag) / Insert path point (HRP)', locale) },
+    { keys: t('Middle Click', locale), desc: t('Pan view (drag)', locale) },
+    { keys: t('Scroll', locale), desc: t('Zoom', locale) },
+    { keys: 'Dbl Click', desc: t('Add map label', locale) },
+  ];
+}
 
 interface StatusBarProps {
   followRobot: boolean;
@@ -25,8 +41,10 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
   const angularV = useRobotPoseStore((s) => s.angularVelocity);
   const teleopEnabled = useTeleopStore((s) => s.teleopEnabled);
   const showInflation = useInflationStore((s) => s.showInflation);
+  const locale = useA11yStore((s) => s.locale);
   const [shiftHeld, setShiftHeld] = useState(false);
   const [activePreset, setActivePreset] = useState<CameraPreset>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.key === 'Shift') setShiftHeld(true); };
@@ -43,9 +61,9 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
   };
 
   return (
-    <div className="h-7 bg-gray-900 border-t border-gray-700 flex items-center px-3 text-xs text-gray-400 gap-3">
+    <div className="h-7 bg-gray-900 border-t border-gray-700 flex items-center px-3 text-xs text-gray-400 gap-3" role="status" aria-label="Status bar">
       <span>
-        ROS:{' '}
+        {t('ROS:', locale)}{' '}
         <span
           className={
             rosStatus === 'connected'
@@ -54,36 +72,40 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
               ? 'text-red-400'
               : 'text-yellow-400'
           }
+          aria-label={`ROS status: ${rosStatus}${isMock ? ' mock' : ''}`}
         >
-          {rosStatus}{isMock ? ' (mock)' : ''}
+          {rosStatus}{isMock ? ` ${t('(mock)', locale)}` : ''}
         </span>
       </span>
-      <span>Zones: {zoneCount}</span>
-      <span>Path: {pathPts}</span>
+      <span>{t('Zones:', locale)} {zoneCount}</span>
+      <span>{t('Path:', locale)} {pathPts}</span>
       <span>
-        <span className="text-gray-500">V:</span>{' '}
+        <span className="text-gray-500">{t('V:', locale)}</span>{' '}
         <span className="text-cyan-400 font-mono">{Math.abs(linearV).toFixed(2)}m/s</span>
         <span className="text-gray-600 mx-1">|</span>
-        <span className="text-gray-500">W:</span>{' '}
+        <span className="text-gray-500">{t('W:', locale)}</span>{' '}
         <span className="text-cyan-400 font-mono">{(angularV * 180 / Math.PI).toFixed(0)}°/s</span>
       </span>
-      <span className="flex items-center gap-1">
-        <span className="text-gray-500 mr-0.5">View:</span>
+      <span className="flex items-center gap-1" role="group" aria-label={t('View:', locale)}>
+        <span className="text-gray-500 mr-0.5">{t('View:', locale)}</span>
         <button
           onClick={() => handlePreset('top')}
           className={`px-1 py-0 rounded text-[10px] ${activePreset === 'top' ? 'text-green-400 bg-green-900/40' : 'text-gray-500 hover:text-gray-300'}`}
+          aria-label={t('Top', locale)}
         >
-          Top
+          {t('Top', locale)}
         </button>
         <button
           onClick={() => handlePreset('side')}
           className={`px-1 py-0 rounded text-[10px] ${activePreset === 'side' ? 'text-green-400 bg-green-900/40' : 'text-gray-500 hover:text-gray-300'}`}
+          aria-label={t('Side', locale)}
         >
-          Side
+          {t('Side', locale)}
         </button>
         <button
           onClick={() => handlePreset('perspective')}
           className={`px-1 py-0 rounded text-[10px] ${activePreset === 'perspective' ? 'text-green-400 bg-green-900/40' : 'text-gray-500 hover:text-gray-300'}`}
+          aria-label="45°"
         >
           45°
         </button>
@@ -91,27 +113,57 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
       <button
         onClick={() => useInflationStore.getState().toggleInflation()}
         className={`px-1.5 py-0 rounded text-[10px] ${showInflation ? 'text-orange-400 bg-orange-900/40 font-medium' : 'text-gray-500 hover:text-gray-300'}`}
+        aria-label={t('Inflate', locale)}
+        aria-pressed={showInflation}
       >
-        Inflate
+        {t('Inflate', locale)}
       </button>
       <span className="ml-auto flex items-center gap-3">
         <button
           onClick={onToggleTeleop}
           className={`px-1.5 py-0 rounded ${teleopEnabled ? 'text-yellow-400 bg-yellow-900/40 font-medium' : 'text-gray-600 hover:text-gray-400'}`}
+          aria-label={`${t('WASD', locale)} teleop`}
+          aria-pressed={teleopEnabled}
         >
-          WASD
+          {t('WASD', locale)}
         </button>
-        {shiftHeld && <span className="text-cyan-400 font-medium">SNAP 0.5m</span>}
+        {shiftHeld && <span className="text-cyan-400 font-medium">{t('SNAP 0.5m', locale)}</span>}
         <button
           onClick={onToggleFollow}
           className={`px-1.5 py-0 rounded ${followRobot ? 'text-green-400 bg-green-900/40' : 'text-gray-600 hover:text-gray-400'}`}
+          aria-label={t('Follow', locale)}
+          aria-pressed={followRobot}
         >
-          Follow
+          {t('Follow', locale)}
         </button>
-        <span className={canUndo ? 'text-blue-400' : 'text-gray-600'}>Ctrl+Z</span>
+        <span className={canUndo ? 'text-blue-400' : 'text-gray-600'} aria-label={t('Undo', locale)}>Ctrl+Z</span>
         <span className="text-gray-600">/</span>
-        <span className={canRedo ? 'text-blue-400' : 'text-gray-600'}>Ctrl+Y</span>
+        <span className={canRedo ? 'text-blue-400' : 'text-gray-600'} aria-label={t('Redo', locale)}>Ctrl+Y</span>
+        <button
+          onClick={() => setShowShortcuts(!showShortcuts)}
+          className={`px-1.5 py-0 rounded ${showShortcuts ? 'text-blue-400 bg-blue-900/40' : 'text-gray-600 hover:text-gray-400'}`}
+          aria-label={t('Keyboard Shortcuts', locale)}
+          aria-expanded={showShortcuts}
+        >
+          ?
+        </button>
       </span>
+      {showShortcuts && (
+        <div className="absolute bottom-7 right-3 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-3 z-50 min-w-[260px]" role="dialog" aria-label={t('Keyboard Shortcuts', locale)}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-200 font-bold">{t('Keyboard Shortcuts', locale)}</span>
+            <button onClick={() => setShowShortcuts(false)} className="text-gray-400 hover:text-white text-xs" aria-label="Close">✕</button>
+          </div>
+          <div className="space-y-1">
+            {getShortcuts(locale).map((s) => (
+              <div key={s.keys} className="flex items-center gap-2 text-xs">
+                <kbd className="bg-gray-700 text-gray-200 px-1.5 py-0.5 rounded text-[10px] font-mono min-w-[80px] text-center shrink-0 border border-gray-600">{s.keys}</kbd>
+                <span className="text-gray-400">{s.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
