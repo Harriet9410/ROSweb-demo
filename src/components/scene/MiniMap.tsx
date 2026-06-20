@@ -1,12 +1,10 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useMapStore } from '../../stores/mapStore';
 import { useFleetStore } from '../../stores/fleetStore';
 import { useHRPStore } from '../../stores/hrpStore';
 import { useNavPlanStore } from '../../stores/navPlanStore';
-import { useCameraStore } from '../../stores/cameraStore';
-import { setCameraPreset } from './CameraControls';
 import type { OccupancyGridData } from '../../utils/mapRenderer';
 
 const MINIMAP_SIZE = 180;
@@ -273,23 +271,6 @@ export function MiniMapOverlay() {
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
-  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const d = miniMapData;
-    if (d.scale <= 0) return;
-    const rect = canvas.getBoundingClientRect();
-    const cx = e.clientX - rect.left;
-    const cz = e.clientY - rect.top;
-    const sceneX = cx / d.scale;
-    const sceneZ = cz / d.scale;
-    const cam = useCameraStore.getState();
-    const dx = sceneX - cam.target[0];
-    const dz = sceneZ - cam.target[2];
-    cam.setPosition([cam.position[0] + dx, cam.position[1], cam.position[2] + dz]);
-    cam.setTarget([sceneX, 0, sceneZ]);
-  }, []);
-
   if (!grid) return null;
 
   const s = miniMapData.mapW > 0 ? MINIMAP_SIZE / Math.max(miniMapData.mapW, miniMapData.mapH) : 1;
@@ -298,8 +279,6 @@ export function MiniMapOverlay() {
 
   return (
     <div
-      onClick={handleClick}
-      className="minimap-clickable"
       style={{
         position: 'absolute',
         top: 8,
@@ -311,6 +290,7 @@ export function MiniMapOverlay() {
         overflow: 'hidden',
         background: '#1a1a2e',
         zIndex: 10,
+        pointerEvents: 'none',
       }}
     >
       <canvas
