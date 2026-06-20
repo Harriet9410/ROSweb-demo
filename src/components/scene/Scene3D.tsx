@@ -31,6 +31,7 @@ import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
 import { publishNavGoal } from '../../ros/connection';
 import { Vec2, dist } from '../../utils/coordinate';
 import { initTouchHandlers, useTouchStore } from '../../stores/touchStore';
+import { WaypointConfig } from '../../stores/fleetStore';
 
 const VERTEX_HIT_RADIUS = 0.15;
 const GRID_SIZE = 0.5;
@@ -403,6 +404,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
               <WaypointMarker
                 key={wp.id}
                 waypoint={wp}
+                wpConfig={wp}
                 index={i}
                 isCurrent={r.navigating && i === r.currentWaypointIdx}
                 isReached={r.navigating && i < r.currentWaypointIdx}
@@ -455,14 +457,17 @@ function makeNumberTexture(num: number, bgColor: string): THREE.CanvasTexture {
   return tex;
 }
 
-function WaypointMarker({ waypoint, index, isCurrent, isReached, isDragged, color = '#42a5f5' }: {
+function WaypointMarker({ waypoint, wpConfig, index, isCurrent, isReached, isDragged, color = '#42a5f5' }: {
   waypoint: Waypoint;
+  wpConfig?: WaypointConfig;
   index: number;
   isCurrent: boolean;
   isReached: boolean;
   isDragged?: boolean;
   color?: string;
 }) {
+  const cfg = wpConfig;
+  const speedColor = cfg ? (cfg.speed >= 0.8 ? '#4caf50' : cfg.speed >= 0.3 ? '#fdd835' : '#ef5350') : color;
   const bgColor = isDragged ? '#ffffff' : isReached ? '#666666' : isCurrent ? '#ff4081' : color;
   const texture = useMemo(() => makeNumberTexture(index, bgColor), [index, bgColor]);
   const y = isDragged ? 0.15 : 0.02;
@@ -476,6 +481,26 @@ function WaypointMarker({ waypoint, index, isCurrent, isReached, isDragged, colo
         <ringGeometry args={[isDragged ? 0.14 : 0.1, isDragged ? 0.2 : 0.16, 24]} />
         <meshBasicMaterial color={bgColor} side={2} transparent opacity={isReached ? 0.3 : 0.7} />
       </mesh>
+      {cfg && cfg.speed !== 0.5 && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
+          <ringGeometry args={[0.18, 0.22, 24]} />
+          <meshBasicMaterial color={speedColor} side={2} transparent opacity={0.5} />
+        </mesh>
+      )}
+      {cfg && cfg.waitDuration > 0 && (
+        <mesh position={[0.25, 0.1, 0]}>
+          <sphereGeometry args={[0.05, 8, 8]} />
+          <meshBasicMaterial color="#ff9800" transparent opacity={0.8} />
+        </mesh>
+      )}
+      {cfg && cfg.targetYaw !== null && (
+        <group position={[0, 0.02, 0]} rotation={[0, cfg.targetYaw, 0]}>
+          <mesh position={[0, 0, -0.25]}>
+            <coneGeometry args={[0.05, 0.15, 8]} />
+            <meshBasicMaterial color="#00bcd4" transparent opacity={0.8} />
+          </mesh>
+        </group>
+      )}
     </group>
   );
 }

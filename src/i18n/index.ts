@@ -152,6 +152,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'Cancel': '取消',
     'Battery:': '电量:',
     'Clear History': '清除历史',
+    'Speed:': '速度:',
+    'Wait:': '等待:',
+    'Yaw:': '朝向:',
+    'Set Yaw': '设朝向',
   },
   ja: {
     'MRReP / MRHaD': 'MRReP / MRHaD',
@@ -303,6 +307,10 @@ const translations: Record<Locale, Record<string, string>> = {
     'Cancel': 'キャンセル',
     'Battery:': 'バッテリー:',
     'Clear History': '履歴削除',
+    'Speed:': '速度:',
+    'Wait:': '待機:',
+    'Yaw:': '方位:',
+    'Set Yaw': '方位設定',
   },
 };
 

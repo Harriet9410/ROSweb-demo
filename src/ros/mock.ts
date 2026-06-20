@@ -27,6 +27,8 @@ let mockLog: string[] = [];
 let logListeners: ((log: string[]) => void)[] = [];
 let currentGrid: OccupancyGridData | null = null;
 let customData: number[] | null = null;
+let wpWaitUntil: number | null = null;
+let wpTargetYaw: number | null = null;
 
 function addLog(msg: string) {
   const ts = new Date().toLocaleTimeString();
@@ -295,6 +297,26 @@ function getCurrentSegmentSpeed(): SegmentSpeed {
 }
 
 function updateOdom() {
+  if (wpWaitUntil !== null) {
+    if (Date.now() < wpWaitUntil) {
+      if (wpTargetYaw !== null) {
+        const angleError = normalizeAngle(wpTargetYaw - robotYaw);
+        const absAngle = Math.abs(angleError);
+        if (absAngle > 0.05) {
+          const angularSpeed = Math.sign(angleError) * Math.min(MAX_ANGULAR_SPEED, absAngle * 3);
+          const dt = 0.1;
+          robotYaw = normalizeAngle(robotYaw + angularSpeed * dt);
+        }
+      }
+      const fleet = useFleetStore.getState();
+      fleet.setRobotPose(fleet.activeRobotId, { x: robotX, z: robotZ, yaw: robotYaw });
+      useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
+      return;
+    }
+    wpWaitUntil = null;
+    wpTargetYaw = null;
+  }
+
   if (smoothPath.length > 0 && pathIdx < smoothPath.length) {
     const target = smoothPath[pathIdx];
     const dx = target.x - robotX;
@@ -312,12 +334,24 @@ function updateOdom() {
         const fleet = useFleetStore.getState();
         const activeBot = fleet.getActiveRobot();
         if (activeBot && activeBot.navigating) {
+          const curWp = activeBot.waypoints[activeBot.currentWaypointIdx];
+          if (curWp) {
+            if (curWp.waitDuration > 0) {
+              wpWaitUntil = Date.now() + curWp.waitDuration * 1000;
+              if (curWp.targetYaw !== null) wpTargetYaw = curWp.targetYaw;
+              addLog(`Waiting at waypoint ${activeBot.currentWaypointIdx + 1} for ${curWp.waitDuration}s`);
+            }
+            if (curWp.targetYaw !== null && wpWaitUntil === null) {
+              robotYaw = curWp.targetYaw;
+            }
+          }
+
           const nextIdx = activeBot.currentWaypointIdx + 1;
           if (nextIdx < activeBot.waypoints.length) {
             addLog(`Advancing to waypoint ${nextIdx + 1}/${activeBot.waypoints.length}`);
             useToastStore.getState().addToast(`Reached waypoint ${activeBot.currentWaypointIdx + 1}, heading to ${nextIdx + 1}`, 'success');
             fleet.setCurrentWaypointIdx(fleet.activeRobotId, nextIdx);
-            navigateToWaypoint(nextIdx);
+            if (wpWaitUntil === null) navigateToWaypoint(nextIdx);
           } else {
             addLog('All waypoints reached!');
             useToastStore.getState().addToast('All waypoints reached!', 'success');
@@ -431,6 +465,8 @@ export function stopMock(): void {
   smoothPath = [];
   pathSegmentSpeeds = [];
   pathIdx = 0;
+  wpWaitUntil = null;
+  wpTargetYaw = null;
   currentGrid = null;
   const fleet = useFleetStore.getState();
   fleet.clearNav(fleet.activeRobotId);
@@ -655,10 +691,10 @@ function navigateToWaypoint(wpIdx: number): void {
   const planned = planPath(wp.x, wp.z);
   if (planned.length > 0) {
     smoothPath = planned;
-    pathSegmentSpeeds = new Array(planned.length - 1).fill(0.5 as SegmentSpeed);
+    pathSegmentSpeeds = new Array(planned.length - 1).fill(wp.speed as SegmentSpeed);
     pathIdx = 0;
     fleet.setPlannedPath(fleet.activeRobotId, planned);
-    addLog(`Path to waypoint ${wpIdx + 1}: ${planned.length} waypoints`);
+    addLog(`Path to waypoint ${wpIdx + 1}: ${planned.length} waypoints @ ${wp.speed}m/s`);
   } else {
     smoothPath = [];
     pathSegmentSpeeds = [];

@@ -12,6 +12,23 @@ export const ROBOT_TYPE_LABELS: Record<RobotType, string> = {
 
 export const ROBOT_TYPES: RobotType[] = ['car', 'humanoid', 'drone', 'dog'];
 
+export interface WaypointConfig {
+  id: string;
+  x: number;
+  z: number;
+  speed: number;
+  waitDuration: number;
+  targetYaw: number | null;
+}
+
+export const DEFAULT_WP_SPEED = 0.5;
+export const DEFAULT_WP_WAIT = 0;
+export const DEFAULT_WP_YAW: number | null = null;
+
+export function makeWaypoint(x: number, z: number, id: string): WaypointConfig {
+  return { id, x, z, speed: DEFAULT_WP_SPEED, waitDuration: DEFAULT_WP_WAIT, targetYaw: DEFAULT_WP_YAW };
+}
+
 export interface RobotInstance {
   id: string;
   name: string;
@@ -20,7 +37,7 @@ export interface RobotInstance {
   pose: { x: number; z: number; yaw: number };
   linearVelocity: number;
   angularVelocity: number;
-  waypoints: { id: string; x: number; z: number }[];
+  waypoints: WaypointConfig[];
   currentWaypointIdx: number;
   navigating: boolean;
   plannedPath: Vec2[];
@@ -49,6 +66,7 @@ interface FleetState {
   addWaypoint: (robotId: string, point: Vec2) => void;
   removeWaypoint: (robotId: string, wpId: string) => void;
   moveWaypoint: (robotId: string, wpId: string, newPos: Vec2) => void;
+  updateWaypoint: (robotId: string, wpId: string, updates: Partial<WaypointConfig>) => void;
   clearWaypoints: (robotId: string) => void;
   setNavigating: (robotId: string, navigating: boolean) => void;
   setCurrentWaypointIdx: (robotId: string, idx: number) => void;
@@ -153,7 +171,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     set((s) => ({
       robots: s.robots.map((r) =>
         r.id === robotId
-          ? { ...r, waypoints: [...r.waypoints, { ...point, id: `wp-${++wpCounter}` }] }
+          ? { ...r, waypoints: [...r.waypoints, makeWaypoint(point.x, point.z, `wp-${++wpCounter}`)] }
           : r
       ),
     })),
@@ -172,6 +190,15 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       robots: s.robots.map((r) =>
         r.id === robotId
           ? { ...r, waypoints: r.waypoints.map((w) => w.id === wpId ? { ...w, ...newPos } : w) }
+          : r
+      ),
+    })),
+
+  updateWaypoint: (robotId, wpId, updates) =>
+    set((s) => ({
+      robots: s.robots.map((r) =>
+        r.id === robotId
+          ? { ...r, waypoints: r.waypoints.map((w) => w.id === wpId ? { ...w, ...updates } : w) }
           : r
       ),
     })),
