@@ -33,6 +33,7 @@ import { Vec2, dist } from '../../utils/coordinate';
 import { initTouchHandlers, useTouchStore } from '../../stores/touchStore';
 import { WaypointConfig } from '../../stores/fleetStore';
 import { useWpSelectStore } from '../../stores/wpSelectStore';
+import { useTaskStore } from '../../stores/taskStore';
 
 const VERTEX_HIT_RADIUS = 0.15;
 const GRID_SIZE = 0.5;
@@ -141,6 +142,19 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         const activeId = fleet.activeRobotId;
         const activeBot = fleet.robots.find((r) => r.id === activeId);
         if (!activeBot) return;
+
+        if (mode === 'tasks') {
+          const taskState = useTaskStore.getState();
+          const editIdx = taskState.editingStepIndex;
+          const chainId = taskState.selectedChainId;
+          if (chainId !== null && editIdx !== null) {
+            const chain = taskState.chains.find((c) => c.id === chainId);
+            if (chain && chain.steps[editIdx]?.type === 'waypoint') {
+              taskState.updateStep(chainId, editIdx, { waypoint: { x: pt.x, z: pt.z } });
+              return;
+            }
+          }
+        }
 
         let closestDist = VERTEX_HIT_RADIUS;
         let closestRobotId: string | null = null;
@@ -459,6 +473,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
           )}
         </group>
       ))}
+      {mode === 'tasks' && <TaskChainMarkers />}
       {moveBasePlan.length >= 2 && !isMock && (
         <NavPathVisual path={moveBasePlan} color="#ffffff" opacity={0.5} />
       )}
@@ -586,4 +601,88 @@ function WaypointLines({ waypoints, navigating, currentIdx, color: colorProp = '
       })}
     </group>
   );
+}
+
+function TaskChainMarkers() {
+  const selectedChainId = useTaskStore((s) => s.selectedChainId);
+  const editingStepIndex = useTaskStore((s) => s.editingStepIndex);
+  const chains = useTaskStore((s) => s.chains);
+  const chain = chains.find((c) => c.id === selectedChainId);
+  if (!chain) return null;
+
+  const waypointSteps = chain.steps
+    .map((step, i) => ({ step, i }))
+    .filter((s) => s.step.type === 'waypoint' && s.step.waypoint);
+
+  if (waypointSteps.length === 0) return null;
+
+  return (
+    <group>
+      {waypointSteps.map(({ step, i }) => (
+        <group key={step.id} position={[step.waypoint!.x, 0.02, step.waypoint!.z]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+            <circleGeometry args={[0.15, 16]} />
+            <meshBasicMaterial
+              color={editingStepIndex === i ? '#00e5ff' : '#ce93d8'}
+              side={2}
+              transparent
+              opacity={editingStepIndex === i ? 0.8 : 0.5}
+            />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
+            <ringGeometry args={[0.15, 0.2, 16]} />
+            <meshBasicMaterial
+              color={editingStepIndex === i ? '#00e5ff' : '#ce93d8'}
+              side={2}
+              transparent
+              opacity={0.6}
+            />
+          </mesh>
+          <sprite position={[0, 0.45, 0]} scale={[0.4, 0.2, 1]}>
+            <spriteMaterial
+              map={makeStepLabelTexture(i + 1)}
+              transparent
+              opacity={0.9}
+              depthWrite={false}
+            />
+          </sprite>
+        </group>
+      ))}
+      {waypointSteps.length >= 2 && (() => {
+        const positions = new Float32Array(waypointSteps.length * 3);
+        waypointSteps.forEach(({ step }, idx) => {
+          positions[idx * 3] = step.waypoint!.x;
+          positions[idx * 3 + 1] = 0.03;
+          positions[idx * 3 + 2] = step.waypoint!.z;
+        });
+        return (
+          <line>
+            <bufferGeometry>
+              <bufferAttribute attach="attributes-position" count={waypointSteps.length} array={positions} itemSize={3} />
+            </bufferGeometry>
+            <lineDashedMaterial color="#ce93d8" dashSize={0.15} gapSize={0.08} transparent opacity={0.5} />
+          </line>
+        );
+      })()}
+    </group>
+  );
+}
+
+function makeStepLabelTexture(num: number): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#7b1fa2cc';
+  ctx.beginPath();
+  ctx.roundRect(4, 2, 56, 28, 6);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`S${num}`, 32, 16);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
 }

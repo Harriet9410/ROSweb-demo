@@ -160,6 +160,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'Waypoint': '航点',
     'seconds': '秒',
     'Delete Waypoint': '删除航点',
+    'Click map to set position': '点击地图设定位置',
+    'segments': '段',
   },
   ja: {
     'MRReP / MRHaD': 'MRReP / MRHaD',
@@ -319,6 +321,8 @@ const translations: Record<Locale, Record<string, string>> = {
     'Waypoint': 'ウェイポイント',
     'seconds': '秒',
     'Delete Waypoint': 'ウェイポイント削除',
+    'Click map to set position': 'マップをクリックして位置を設定',
+    'segments': 'セグメント',
   },
 };
 

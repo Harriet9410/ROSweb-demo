@@ -204,12 +204,13 @@ function StepItem({ step, index, total, onRemove, onDrag, onUpdate, locale }: {
   onUpdate: (updates: Partial<TaskStep>) => void;
   locale: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const typeIcon: Record<string, string> = { path: '📍', waypoint: '📌', wait: '⏳' };
   const typeColor: Record<string, string> = { path: 'text-purple-300', waypoint: 'text-cyan-300', wait: 'text-amber-300' };
 
   return (
     <div
-      className="flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-gray-700/50"
+      className={`text-[10px] rounded bg-gray-700/50 ${step.type === 'waypoint' && expanded ? 'ring-1 ring-cyan-500/50' : ''}`}
       draggable
       onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(index)); e.dataTransfer.effectAllowed = 'move'; }}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
@@ -219,25 +220,69 @@ function StepItem({ step, index, total, onRemove, onDrag, onUpdate, locale }: {
         if (!isNaN(fromIdx) && fromIdx !== index) onDrag(fromIdx, index);
       }}
     >
-      <span className="text-gray-500 cursor-grab">⠿</span>
-      <span className="text-gray-400 w-4">{index + 1}</span>
-      <span className={typeColor[step.type]}>{typeIcon[step.type]}</span>
-      <span className="text-gray-300 flex-1 truncate">
-        {step.type === 'path' && `${step.path.length}${t('pts', locale)}`}
-        {step.type === 'waypoint' && step.waypoint && `(${step.waypoint.x.toFixed(1)}, ${step.waypoint.z.toFixed(1)})`}
-        {step.type === 'wait' && `${step.waitDuration}s`}
-      </span>
-      {step.type === 'wait' && (
-        <input
-          type="number"
-          min={1}
-          max={300}
-          value={step.waitDuration}
-          onChange={(e) => onUpdate({ waitDuration: Math.max(1, parseInt(e.target.value) || 1) })}
-          className="w-10 text-[10px] bg-gray-600 text-white px-1 py-0.5 rounded text-right"
-        />
+      <div className="flex items-center gap-1 px-2 py-1 cursor-pointer" onClick={() => {
+        if (step.type === 'wait') return;
+        const nextExpanded = !expanded;
+        setExpanded(nextExpanded);
+        useTaskStore.getState().setEditingStepIndex(
+          nextExpanded && step.type === 'waypoint' ? index : null
+        );
+      }}>
+        <span className="text-gray-500 cursor-grab">⠿</span>
+        <span className="text-gray-400 w-4">{index + 1}</span>
+        <span className={typeColor[step.type]}>{typeIcon[step.type]}</span>
+        <span className="text-gray-300 flex-1 truncate">
+          {step.type === 'path' && `${step.path.length}${t('pts', locale)}`}
+          {step.type === 'waypoint' && step.waypoint && `(${step.waypoint.x.toFixed(1)}, ${step.waypoint.z.toFixed(1)})`}
+          {step.type === 'wait' && `${step.waitDuration}s`}
+        </span>
+        {step.type === 'wait' && (
+          <input
+            type="number"
+            min={1}
+            max={300}
+            value={step.waitDuration}
+            onChange={(e) => onUpdate({ waitDuration: Math.max(1, parseInt(e.target.value) || 1) })}
+            onClick={(e) => e.stopPropagation()}
+            className="w-10 text-[10px] bg-gray-600 text-white px-1 py-0.5 rounded text-right"
+          />
+        )}
+        {step.type === 'waypoint' && <span className="text-gray-500">{expanded ? '▼' : '▶'}</span>}
+        {step.type === 'path' && <span className="text-gray-500">{expanded ? '▼' : '▶'}</span>}
+        <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-red-400 hover:text-red-300 px-0.5">✕</button>
+      </div>
+      {expanded && step.type === 'waypoint' && step.waypoint && (
+        <div className="px-2 pb-1.5 pt-0.5 space-y-1 border-t border-gray-600/30" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-gray-500">X:</span>
+            <input
+              type="number" step={0.1}
+              value={step.waypoint.x.toFixed(2)}
+              onChange={(e) => onUpdate({ waypoint: { ...step.waypoint!, x: parseFloat(e.target.value) || 0 } })}
+              className="w-16 text-[10px] bg-gray-600 text-cyan-300 px-1 py-0.5 rounded text-right"
+            />
+            <span className="text-[10px] text-gray-500">Z:</span>
+            <input
+              type="number" step={0.1}
+              value={step.waypoint.z.toFixed(2)}
+              onChange={(e) => onUpdate({ waypoint: { ...step.waypoint!, z: parseFloat(e.target.value) || 0 } })}
+              className="w-16 text-[10px] bg-gray-600 text-cyan-300 px-1 py-0.5 rounded text-right"
+            />
+          </div>
+          <div className="text-[10px] text-gray-500">{t('Click map to set position', locale)}</div>
+        </div>
       )}
-      <button onClick={onRemove} className="text-red-400 hover:text-red-300 px-0.5">✕</button>
+      {expanded && step.type === 'path' && step.path.length >= 2 && (
+        <div className="px-2 pb-1.5 pt-0.5 space-y-0.5 border-t border-gray-600/30" onClick={(e) => e.stopPropagation()}>
+          <div className="text-[10px] text-gray-500">{step.path.length} {t('pts', locale)}, {step.speeds.length || step.path.length - 1} {t('segments', locale)}</div>
+          {step.path.slice(0, 5).map((p, pi) => (
+            <div key={pi} className="text-[9px] text-gray-400 font-mono">
+              {pi + 1}: ({p.x.toFixed(2)}, {p.z.toFixed(2)}){step.speeds[pi] ? ` @ ${step.speeds[pi]}m/s` : ''}
+            </div>
+          ))}
+          {step.path.length > 5 && <div className="text-[9px] text-gray-500">... +{step.path.length - 5}</div>}
+        </div>
+      )}
     </div>
   );
 }
