@@ -158,9 +158,9 @@ export function ActionPanel({ mode }: ActionPanelProps) {
               <option key={r.id} value={r.id}>{r.name} ({t(ROBOT_TYPE_LABELS[r.robotType], locale)})</option>
             ))}
           </select>
-          <button onClick={() => useFleetStore.getState().addRobot(undefined, newRobotType)} className="text-[10px] bg-green-700/60 hover:bg-green-600/60 text-green-200 px-1.5 py-1 rounded" aria-label="Add robot">+</button>
+          <button onClick={() => { useUndoStore.getState().pushUndo(); useFleetStore.getState().addRobot(undefined, newRobotType); }} className="text-[10px] bg-green-700/60 hover:bg-green-600/60 text-green-200 px-1.5 py-1 rounded" aria-label="Add robot">+</button>
           {fleetRobots.length > 1 && (
-            <button onClick={() => useFleetStore.getState().removeRobot(activeRobotId)} className="text-[10px] bg-red-700/60 hover:bg-red-600/60 text-red-200 px-1.5 py-1 rounded" aria-label="Remove robot">−</button>
+            <button onClick={() => { useUndoStore.getState().pushUndo(); useFleetStore.getState().removeRobot(activeRobotId); }} className="text-[10px] bg-red-700/60 hover:bg-red-600/60 text-red-200 px-1.5 py-1 rounded" aria-label="Remove robot">−</button>
           )}
         </div>
         <div className="text-xs text-gray-400">Robots: {fleetRobots.length}</div>
@@ -278,7 +278,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
                 {t('Start Navigation', locale)} ({activeBot.waypoints.length} {t('waypoints', locale)})
               </button>
               {activeBot.waypoints.length > 0 && (
-                <button onClick={() => useFleetStore.getState().clearWaypoints(activeRobotId)} className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded">
+                <button onClick={() => { useUndoStore.getState().pushUndo(); useFleetStore.getState().clearWaypoints(activeRobotId); }} className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded">
                   {t('Clear All Waypoints', locale)}
                 </button>
               )}
@@ -606,7 +606,7 @@ function WaypointItem({ wp, index, robotId, robotColor, isNavigating, currentIdx
         {wp.waitDuration > 0 && <span className="text-[10px] text-amber-400">⏳{wp.waitDuration}s</span>}
         {wp.targetYaw !== null && <span className="text-[10px] text-cyan-400">🧭{(wp.targetYaw * 180 / Math.PI).toFixed(0)}°</span>}
         {!isNavigating && (
-          <button onClick={(e) => { e.stopPropagation(); useFleetStore.getState().removeWaypoint(robotId, wp.id); if (isSelected) useWpSelectStore.getState().clearSelection(); }} className="text-red-400 hover:text-red-300 px-0.5">✕</button>
+          <button onClick={(e) => { e.stopPropagation(); useUndoStore.getState().pushUndo(); useFleetStore.getState().removeWaypoint(robotId, wp.id); if (isSelected) useWpSelectStore.getState().clearSelection(); }} className="text-red-400 hover:text-red-300 px-0.5">✕</button>
         )}
       </div>
     </div>
@@ -642,6 +642,7 @@ function SelectedWaypointEditor({ locale }: { locale: string }) {
         <input
           type="range" min={0.05} max={2.0} step={0.05}
           value={wp.speed}
+          onPointerDown={() => useUndoStore.getState().pushUndo()}
           onChange={(e) => useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { speed: parseFloat(e.target.value) })}
           className="flex-1 h-1 accent-green-500"
         />
@@ -669,19 +670,19 @@ function SelectedWaypointEditor({ locale }: { locale: string }) {
             />
             <span className="text-[10px] text-gray-500">°</span>
             <button
-              onClick={() => useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { targetYaw: null })}
+              onClick={() => { useUndoStore.getState().pushUndo(); useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { targetYaw: null }); }}
               className="text-[10px] text-red-400 hover:text-red-300 px-0.5"
             >✕</button>
           </>
         ) : (
           <button
-            onClick={() => useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { targetYaw: 0 })}
+            onClick={() => { useUndoStore.getState().pushUndo(); useFleetStore.getState().updateWaypoint(selRobotId, selWpId, { targetYaw: 0 }); }}
             className="text-[10px] bg-gray-600 text-gray-400 hover:text-cyan-300 px-1.5 py-0.5 rounded"
           >+ {t('Set Yaw', locale)}</button>
         )}
       </div>
       <button
-        onClick={() => { useFleetStore.getState().removeWaypoint(selRobotId, selWpId); useWpSelectStore.getState().clearSelection(); }}
+        onClick={() => { useUndoStore.getState().pushUndo(); useFleetStore.getState().removeWaypoint(selRobotId, selWpId); useWpSelectStore.getState().clearSelection(); }}
         className="w-full text-[10px] bg-red-700/60 hover:bg-red-600/60 text-red-200 px-1.5 py-1 rounded"
       >
         {t('Delete Waypoint', locale)}

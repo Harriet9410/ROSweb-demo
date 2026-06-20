@@ -184,8 +184,10 @@ function SceneEvents({ mode }: { mode: AppMode }) {
         useWpSelectStore.getState().clearSelection();
         if (rosStore.isMock) {
           if (activeBot.navigating) return;
+          useUndoStore.getState().pushUndo();
           fleet.addWaypoint(activeId, pt);
         } else if (rosStore.status === 'connected') {
+          useUndoStore.getState().pushUndo();
           publishNavGoal(pt.x, pt.z);
           fleet.addWaypoint(activeId, pt);
           fleet.setCurrentWaypointIdx(activeId, 0);
@@ -446,7 +448,7 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
         if (mode === 'navigate') {
           if (rosStore.isMock) {
             const bot = fleet.robots.find((r) => r.id === activeId);
-            if (bot && !bot.navigating) fleet.addWaypoint(activeId, pt);
+            if (bot && !bot.navigating) { useUndoStore.getState().pushUndo(); fleet.addWaypoint(activeId, pt); }
           }
         } else if (mode === 'mapedit' && rosStore.isMock) {
           mockPlaceRobot(pt.x, pt.z);
