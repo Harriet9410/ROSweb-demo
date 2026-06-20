@@ -8,6 +8,7 @@ import { useLabelStore } from '../../stores/labelStore';
 import { useA11yStore } from '../../stores/a11yStore';
 import { useFleetStore, FormationType, RobotType, ROBOT_TYPES, ROBOT_TYPE_LABELS } from '../../stores/fleetStore';
 import { usePoseSyncStore, startPoseSync, stopPoseSync } from '../../stores/poseSyncStore';
+import { TaskPanel } from './TaskPanel';
 import { t } from '../../i18n';
 import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap } from '../../ros/mock';
@@ -479,6 +480,7 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           )}
         </>
       )}
+      {mode === 'tasks' && <TaskPanel />}
     </div>
   );
 }

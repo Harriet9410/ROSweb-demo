@@ -359,15 +359,14 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
         <RobotModel key={r.id} x={r.pose.x} z={r.pose.z} yaw={r.pose.yaw} color={r.color} isActive={r.id === activeRobotId} robotType={r.robotType} />
       ))}
       <SceneEvents mode={mode} />
-      {(mode === 'hrz') && <HRZEditor3D />}
+      {(mode === 'hrz' || mode === 'tasks') && <HRZEditor3D />}
       {(mode === 'hrp') && activeRobot && (
         <>
           <HRZEditor3D />
           <HRPEditor3D robotX={activeRobot.pose.x} robotZ={activeRobot.pose.z} />
         </>
       )}
-      {mode === 'mapedit' && <MapEditPreview />}
-      {mode === 'navigate' && robots.map((r) => (
+      {(mode === 'navigate' || mode === 'tasks') && robots.map((r) => (
         <group key={r.id}>
           {r.waypoints.map((wp, i) => (
             <WaypointMarker

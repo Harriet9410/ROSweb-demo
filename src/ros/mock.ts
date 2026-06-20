@@ -283,6 +283,10 @@ const MAX_ANGULAR_SPEED = 2.0;
 const ANGLE_THRESHOLD = 0.15;
 const ARRIVE_THRESHOLD = 0.04;
 
+const BATTERY_DRAIN_RATE_MOVING = 0.05;
+const BATTERY_DRAIN_RATE_IDLE = 0.002;
+const BATTERY_CHARGE_RATE = 0.2;
+
 function getCurrentSegmentSpeed(): SegmentSpeed {
   if (pathIdx >= 1 && pathIdx - 1 < pathSegmentSpeeds.length) {
     return pathSegmentSpeeds[pathIdx - 1];
@@ -356,6 +360,14 @@ function updateOdom() {
   const activeBot = fleet.getActiveRobot();
   if (activeBot) {
     useRobotPoseStore.getState().setVelocity(activeBot.linearVelocity, activeBot.angularVelocity);
+    const isMoving = smoothPath.length > 0 && pathIdx < smoothPath.length;
+    const drain = isMoving ? BATTERY_DRAIN_RATE_MOVING : BATTERY_DRAIN_RATE_IDLE;
+    fleet.setRobotBattery(fleet.activeRobotId, activeBot.battery - drain);
+    if (!isMoving) {
+      fleet.tickRobotIdle(fleet.activeRobotId, 0.1);
+    } else {
+      fleet.resetRobotIdle(fleet.activeRobotId);
+    }
   }
 }
 

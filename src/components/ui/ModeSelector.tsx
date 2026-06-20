@@ -2,7 +2,7 @@ import { useRosStore } from '../../stores/rosStore';
 import { useA11yStore } from '../../stores/a11yStore';
 import { t } from '../../i18n';
 
-export type AppMode = 'navigate' | 'hrz' | 'hrp' | 'mapedit';
+export type AppMode = 'navigate' | 'hrz' | 'hrp' | 'mapedit' | 'tasks';
 
 interface ModeSelectorProps {
   mode: AppMode;
@@ -18,6 +18,7 @@ export function ModeSelector({ mode, onChange }: ModeSelectorProps) {
     { key: 'mapedit', label: t('Map Edit', locale), icon: '🗺️', mockOnly: true },
     { key: 'hrz', label: t('HRZ Zone', locale), icon: '🚫', mockOnly: false },
     { key: 'hrp', label: t('HRP Path', locale), icon: '✏️', mockOnly: false },
+    { key: 'tasks', label: t('Tasks', locale), icon: '📋', mockOnly: false },
   ];
 
   const visibleModes = allModes.filter((m) => !m.mockOnly || isMock);

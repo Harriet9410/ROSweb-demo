@@ -24,6 +24,8 @@ export interface RobotInstance {
   currentWaypointIdx: number;
   navigating: boolean;
   plannedPath: Vec2[];
+  battery: number;
+  idleTime: number;
 }
 
 export type FormationType = 'line' | 'v' | 'circle' | 'column';
@@ -41,6 +43,9 @@ interface FleetState {
   setActiveRobot: (id: string) => void;
   setRobotPose: (id: string, pose: { x: number; z: number; yaw: number }) => void;
   setRobotVelocity: (id: string, linear: number, angular: number) => void;
+  setRobotBattery: (id: string, battery: number) => void;
+  tickRobotIdle: (id: string, dt: number) => void;
+  resetRobotIdle: (id: string) => void;
   addWaypoint: (robotId: string, point: Vec2) => void;
   removeWaypoint: (robotId: string, wpId: string) => void;
   clearWaypoints: (robotId: string) => void;
@@ -70,6 +75,8 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     currentWaypointIdx: 0,
     navigating: false,
     plannedPath: [],
+    battery: 100,
+    idleTime: 0,
   }],
   activeRobotId: 'robot-0',
   formation: 'line',
@@ -91,6 +98,8 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       currentWaypointIdx: 0,
       navigating: false,
       plannedPath: [],
+      battery: 100,
+      idleTime: 0,
     };
     set({ robots: [...robots, newRobot], activeRobotId: id });
     return id;
@@ -120,6 +129,23 @@ export const useFleetStore = create<FleetState>((set, get) => ({
   setRobotVelocity: (id, linear, angular) =>
     set((s) => ({
       robots: s.robots.map((r) => (r.id === id ? { ...r, linearVelocity: linear, angularVelocity: angular } : r)),
+    })),
+
+  setRobotBattery: (id, battery) =>
+    set((s) => ({
+      robots: s.robots.map((r) => (r.id === id ? { ...r, battery: Math.max(0, Math.min(100, battery)) } : r)),
+    })),
+
+  tickRobotIdle: (id, dt) =>
+    set((s) => ({
+      robots: s.robots.map((r) =>
+        r.id === id && !r.navigating ? { ...r, idleTime: r.idleTime + dt } : r
+      ),
+    })),
+
+  resetRobotIdle: (id) =>
+    set((s) => ({
+      robots: s.robots.map((r) => (r.id === id ? { ...r, idleTime: 0 } : r)),
     })),
 
   addWaypoint: (robotId, point) =>

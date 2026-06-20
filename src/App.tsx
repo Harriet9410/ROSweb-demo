@@ -11,16 +11,22 @@ import { useUndoStore } from './stores/undoStore';
 import { useTeleopStore } from './stores/teleopStore';
 import { useLabelStore } from './stores/labelStore';
 import { useA11yStore } from './stores/a11yStore';
+import { useTaskStore } from './stores/taskStore';
 import { save, load } from './utils/persistence';
+import { startTaskEngine, stopTaskEngine } from './ros/taskExecutor';
 
 function App() {
   const [mode, setMode] = useState<AppMode>('navigate');
   const hrzZones = useHRZStore((s) => s.zones);
   const hrpPath = useHRPStore((s) => s.path);
   const mapLabels = useLabelStore((s) => s.labels);
+  const taskChains = useTaskStore((s) => s.chains);
+  const scheduledTasks = useTaskStore((s) => s.scheduledTasks);
+  const conditionalTasks = useTaskStore((s) => s.conditionalTasks);
   const loadZones = useHRZStore((s) => s.loadZones);
   const loadPath = useHRPStore((s) => s.loadPath);
   const loadLabels = useLabelStore((s) => s.loadLabels);
+  const loadTasks = useTaskStore((s) => s.loadTasks);
   const isMock = useRosStore((s) => s.isMock);
   const highContrast = useA11yStore((s) => s.highContrast);
   const lightTheme = useA11yStore((s) => s.lightTheme);
@@ -31,12 +37,21 @@ function App() {
       if (data.hrzZones) loadZones(data.hrzZones);
       if (data.hrpPath) loadPath(data.hrpPath);
       if (data.labels) loadLabels(data.labels);
+      if (data.taskChains || data.scheduledTasks || data.conditionalTasks) {
+        loadTasks({
+          chains: data.taskChains || [],
+          scheduledTasks: data.scheduledTasks || [],
+          conditionalTasks: data.conditionalTasks || [],
+        });
+      }
     }
+    startTaskEngine();
+    return () => stopTaskEngine();
   }, []);
 
   useEffect(() => {
-    save(hrzZones, hrpPath, mapLabels);
-  }, [hrzZones, hrpPath, mapLabels]);
+    save(hrzZones, hrpPath, mapLabels, taskChains, scheduledTasks, conditionalTasks);
+  }, [hrzZones, hrpPath, mapLabels, taskChains, scheduledTasks, conditionalTasks]);
 
   useEffect(() => {
     if (!isMock && mode === 'mapedit') {

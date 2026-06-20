@@ -83,6 +83,14 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
       </span>
       <span>{t('Zones:', locale)} {zoneCount}</span>
       <span>{t('Path:', locale)} {pathPts}</span>
+      {activeBot && (
+        <span className="flex items-center gap-1">
+          <span className="text-gray-500">🔋</span>
+          <span className={`font-mono ${activeBot.battery > 20 ? 'text-green-400' : activeBot.battery > 10 ? 'text-yellow-400' : 'text-red-400'}`}>
+            {activeBot.battery.toFixed(0)}%
+          </span>
+        </span>
+      )}
       <span>
         <span className="text-gray-500">{t('V:', locale)}</span>{' '}
         <span className="text-cyan-400 font-mono">{Math.abs(linearV).toFixed(2)}m/s</span>
