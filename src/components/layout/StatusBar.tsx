@@ -43,8 +43,17 @@ export function StatusBar({ mode, followRobot, onToggleFollow, onToggleTeleop }:
   const undoCanRedo = useUndoStore((s) => s.canRedo);
   const mapCanUndo = useMapStore((s) => s.canMapUndo);
   const mapCanRedo = useMapStore((s) => s.canMapRedo);
-  const canUndo = mode === 'mapedit' ? mapCanUndo : undoCanUndo;
-  const canRedo = mode === 'mapedit' ? mapCanRedo : undoCanRedo;
+  const canUndo = undoCanUndo || mapCanUndo;
+  const canRedo = undoCanRedo || mapCanRedo;
+
+  const handleUndo = () => {
+    if (mapCanUndo) useMapStore.getState().mapUndo();
+    if (undoCanUndo) useUndoStore.getState().undo();
+  };
+  const handleRedo = () => {
+    if (mapCanRedo) useMapStore.getState().mapRedo();
+    if (undoCanRedo) useUndoStore.getState().redo();
+  };
   const teleopEnabled = useTeleopStore((s) => s.teleopEnabled);
   const showInflation = useInflationStore((s) => s.showInflation);
   const locale = useA11yStore((s) => s.locale);
@@ -166,8 +175,8 @@ export function StatusBar({ mode, followRobot, onToggleFollow, onToggleTeleop }:
         >
           ☀
         </button>
-        <button onClick={() => { mode === 'mapedit' ? useMapStore.getState().mapUndo() : useUndoStore.getState().undo(); }} disabled={!canUndo} className={`px-1 py-0 rounded text-sm ${canUndo ? 'text-blue-400 hover:text-blue-300' : 'text-gray-600 cursor-default'}`} aria-label={t('Undo', locale)}>↶</button>
-        <button onClick={() => { mode === 'mapedit' ? useMapStore.getState().mapRedo() : useUndoStore.getState().redo(); }} disabled={!canRedo} className={`px-1 py-0 rounded text-sm ${canRedo ? 'text-blue-400 hover:text-blue-300' : 'text-gray-600 cursor-default'}`} aria-label={t('Redo', locale)}>↷</button>
+        <button onClick={handleUndo} disabled={!canUndo} className={`px-1 py-0 rounded text-sm ${canUndo ? 'text-blue-400 hover:text-blue-300' : 'text-gray-600 cursor-default'}`} aria-label={t('Undo', locale)}>↶</button>
+        <button onClick={handleRedo} disabled={!canRedo} className={`px-1 py-0 rounded text-sm ${canRedo ? 'text-blue-400 hover:text-blue-300' : 'text-gray-600 cursor-default'}`} aria-label={t('Redo', locale)}>↷</button>
         <button
           onClick={() => setShowShortcuts(!showShortcuts)}
           className={`px-1.5 py-0 rounded ${showShortcuts ? 'text-blue-400 bg-blue-900/40' : 'text-gray-600 hover:text-gray-400'}`}

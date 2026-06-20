@@ -64,19 +64,13 @@ function App() {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
-        if (mode === 'mapedit') {
-          useMapStore.getState().mapUndo();
-        } else {
-          useUndoStore.getState().undo();
-        }
+        if (useMapStore.getState().canMapUndo) useMapStore.getState().mapUndo();
+        if (useUndoStore.getState().canUndo) useUndoStore.getState().undo();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault();
-        if (mode === 'mapedit') {
-          useMapStore.getState().mapRedo();
-        } else {
-          useUndoStore.getState().redo();
-        }
+        if (useMapStore.getState().canMapRedo) useMapStore.getState().mapRedo();
+        if (useUndoStore.getState().canRedo) useUndoStore.getState().redo();
       }
       if (e.key === 'Escape') {
         // reserved
