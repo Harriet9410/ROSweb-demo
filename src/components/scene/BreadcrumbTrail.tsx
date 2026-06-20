@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useRobotPoseStore } from '../../stores/robotPoseStore';
+import { useFleetStore } from '../../stores/fleetStore';
 import { useTrailStore } from '../../stores/trailStore';
 
 const MAX_RENDER = 500;
@@ -12,8 +12,9 @@ export function BreadcrumbTrail() {
   const addPoint = useTrailStore((s) => s.addPoint);
 
   useFrame(() => {
-    const pose = useRobotPoseStore.getState().pose;
-    addPoint({ x: pose.x, z: pose.z });
+    const fleet = useFleetStore.getState();
+    const bot = fleet.getActiveRobot();
+    if (bot) addPoint({ x: bot.pose.x, z: bot.pose.z });
 
     const trail = useTrailStore.getState().trail;
     const len = Math.min(trail.length, MAX_RENDER);

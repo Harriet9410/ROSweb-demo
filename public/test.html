@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head><title>Mock Test</title></head>
+<body style="background:#222;color:#fff;font-family:monospace;padding:20px">
+<h2>Mock Mode Test</h2>
+<button onclick="testMock()" style="padding:10px 20px;font-size:16px;cursor:pointer">1. Test Mock</button>
+<button onclick="testRoslib()" style="padding:10px 20px;font-size:16px;cursor:pointer;margin-left:10px">2. Test roslib</button>
+<button onclick="testFullApp()" style="padding:10px 20px;font-size:16px;cursor:pointer;margin-left:10px">3. Test Full App</button>
+<pre id="log" style="margin-top:10px;background:#111;padding:10px;min-height:300px"></pre>
+<script type="module">
+const log = document.getElementById('log');
+function addLog(msg) { log.textContent += msg + '\n'; }
+
+async function testMock() {
+  addLog('--- Test Mock Start ---');
+  try {
+    const { useRosStore } = await import('/src/stores/rosStore.ts');
+    const { useFleetStore } = await import('/src/stores/fleetStore.ts');
+    const { useMapStore } = await import('/src/stores/mapStore.ts');
+    const mock = await import('/src/ros/mock.ts');
+    mock.startMock('default');
+    addLog('OK status=' + useRosStore.getState().status);
+    addLog('OK grid=' + (useMapStore.getState().grid ? useMapStore.getState().grid.width + 'x' + useMapStore.getState().grid.height : 'null'));
+    addLog('OK pose=' + JSON.stringify(useFleetStore.getState().robots[0].pose));
+  } catch(e) {
+    addLog('ERROR: ' + e.message + '\n' + e.stack);
+  }
+}
+
+async function testRoslib() {
+  addLog('--- Test roslib Start ---');
+  try {
+    addLog('1. Importing roslib...');
+    const roslib = await import('roslib');
+    addLog('2. roslib OK, Ros=' + typeof roslib.Ros + ', Topic=' + typeof roslib.Topic);
+    addLog('3. Importing connection...');
+    const conn = await import('/src/ros/connection.ts');
+    addLog('4. connection OK, exports: ' + Object.keys(conn).join(', '));
+  } catch(e) {
+    addLog('ERROR: ' + e.message + '\n' + e.stack);
+  }
+}
+
+async function testFullApp() {
+  addLog('--- Test Full App Start ---');
+  try {
+    addLog('1. Importing ROSConnection...');
+    const mod = await import('/src/components/ros/ROSConnection.tsx');
+    addLog('2. ROSConnection OK, exports: ' + Object.keys(mod).join(', '));
+  } catch(e) {
+    addLog('ERROR: ' + e.message + '\n' + e.stack);
+  }
+}
+
+window.testMock = testMock;
+window.testRoslib = testRoslib;
+window.testFullApp = testFullApp;
+</script>
+</body>
+</html>

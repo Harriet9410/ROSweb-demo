@@ -42,6 +42,7 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
   const locale = useA11yStore((s) => s.locale);
   const fleetRobots = useFleetStore((s) => s.robots);
   const activeRobotId = useFleetStore((s) => s.activeRobotId);
+  const lightTheme = useA11yStore((s) => s.lightTheme);
   const activeBot = fleetRobots.find((r) => r.id === activeRobotId);
   const linearV = activeBot?.linearVelocity ?? 0;
   const angularV = activeBot?.angularVelocity ?? 0;
@@ -138,6 +139,14 @@ export function StatusBar({ followRobot, onToggleFollow, onToggleTeleop }: Statu
           aria-pressed={followRobot}
         >
           {t('Follow', locale)}
+        </button>
+        <button
+          onClick={() => useA11yStore.getState().toggleLightTheme()}
+          className={`px-1.5 py-0 rounded ${lightTheme ? 'text-amber-400 bg-amber-900/40 font-medium' : 'text-gray-600 hover:text-gray-400'}`}
+          aria-label={t('Light Theme', locale)}
+          aria-pressed={lightTheme}
+        >
+          ☀
         </button>
         <span className={canUndo ? 'text-blue-400' : 'text-gray-600'} aria-label={t('Undo', locale)}>Ctrl+Z</span>
         <span className="text-gray-600">/</span>

@@ -23,6 +23,7 @@ function App() {
   const loadLabels = useLabelStore((s) => s.loadLabels);
   const isMock = useRosStore((s) => s.isMock);
   const highContrast = useA11yStore((s) => s.highContrast);
+  const lightTheme = useA11yStore((s) => s.lightTheme);
 
   useEffect(() => {
     const data = load();
@@ -53,6 +54,9 @@ function App() {
         e.preventDefault();
         useUndoStore.getState().redo();
       }
+      if (e.key === 'Escape') {
+        // reserved
+      }
       useTeleopStore.getState().keyDown(e.key);
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -81,7 +85,7 @@ function App() {
   const toggleTeleop = () => useTeleopStore.getState().setTeleopEnabled(!teleopEnabled);
 
   return (
-    <div className={`flex h-screen w-screen bg-gray-900 text-white ${highContrast ? 'hc-mode' : ''}`}>
+    <div className={`flex h-screen w-screen bg-gray-900 text-white ${highContrast ? 'hc-mode' : ''} ${lightTheme ? 'light-theme' : ''}`}>
       <Sidebar mode={mode} onModeChange={setMode} />
       <div className="flex-1 flex flex-col">
         <div className="flex-1">

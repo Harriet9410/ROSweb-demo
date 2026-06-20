@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { useRobotPoseStore } from './robotPoseStore';
+import { useFleetStore } from './fleetStore';
 import { useRosStore } from './rosStore';
 import { publishCmdVel } from '../ros/connection';
 import { setMockRobotPose } from '../ros/mock';
@@ -72,12 +72,16 @@ export const useTeleopStore = create<TeleopState>((set, get) => ({
     const isMock = useRosStore.getState().isMock;
     if (isMock) {
       const dt = 0.05;
-      const pose = useRobotPoseStore.getState().pose;
-      const newYaw = pose.yaw + angular * dt;
-      const newX = pose.x + Math.sin(pose.yaw) * linear * dt;
-      const newZ = pose.z - Math.cos(pose.yaw) * linear * dt;
-      setMockRobotPose(newX, newZ, newYaw);
-      useRobotPoseStore.getState().setVelocity(linear, angular);
+      const fleet = useFleetStore.getState();
+      const bot = fleet.getActiveRobot();
+      if (bot) {
+        const pose = bot.pose;
+        const newYaw = pose.yaw + angular * dt;
+        const newX = pose.x + Math.sin(pose.yaw) * linear * dt;
+        const newZ = pose.z - Math.cos(pose.yaw) * linear * dt;
+        setMockRobotPose(newX, newZ, newYaw);
+        fleet.setRobotVelocity(fleet.activeRobotId, linear, angular);
+      }
     } else {
       publishCmdVel(linear, angular);
     }

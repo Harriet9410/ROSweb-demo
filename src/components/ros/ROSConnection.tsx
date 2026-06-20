@@ -6,7 +6,11 @@ import { connect, disconnect } from '../../ros/connection';
 import { startMock, stopMock } from '../../ros/mock';
 
 export function ROSConnection() {
-  const { status, url, setUrl, isMock, setMock } = useRosStore();
+  const status = useRosStore((s) => s.status);
+  const url = useRosStore((s) => s.url);
+  const isMock = useRosStore((s) => s.isMock);
+  const setUrl = useRosStore((s) => s.setUrl);
+  const setMock = useRosStore((s) => s.setMock);
   const locale = useA11yStore((s) => s.locale);
   const [inputUrl, setInputUrl] = useState(url);
 
@@ -22,9 +26,13 @@ export function ROSConnection() {
   };
 
   const handleMock = () => {
-    if (!isMock) disconnect();
-    setMock(true);
-    startMock('default');
+    try {
+      if (!isMock) disconnect();
+      setMock(true);
+      startMock('default');
+    } catch (e) {
+      alert('handleMock error: ' + (e as Error).message + '\n' + (e as Error).stack);
+    }
   };
 
   const statusColor: Record<string, string> = {

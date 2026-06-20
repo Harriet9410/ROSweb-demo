@@ -28,6 +28,7 @@ import { useNavPlanStore } from '../../stores/navPlanStore';
 import { mockPaintBrush, mockPaintRect, mockPlaceRobot } from '../../ros/mock';
 import { publishNavGoal } from '../../ros/connection';
 import { Vec2, dist } from '../../utils/coordinate';
+import { initTouchHandlers, useTouchStore } from '../../stores/touchStore';
 
 const VERTEX_HIT_RADIUS = 0.15;
 const GRID_SIZE = 0.5;
@@ -304,6 +305,43 @@ export function Scene3D({ mode, followRobot }: { mode: AppMode; followRobot: boo
   const isMock = useRosStore((s) => s.isMock);
 
   const activeRobot = robots.find((r) => r.id === activeRobotId);
+
+  useEffect(() => {
+    let cleanup: (() => void) | void | undefined;
+    let cancelled = false;
+    const tryInit = () => {
+      if (cancelled) return;
+      const canvas = document.querySelector('canvas');
+      if (!canvas) { setTimeout(tryInit, 100); return; }
+      cleanup = initTouchHandlers(canvas);
+      const raycaster = new THREE.Raycaster();
+      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      useTouchStore.getState().setLongPressCallback((ndcX: number, ndcY: number) => {
+        const cam = document.querySelector('canvas');
+        if (!cam) return;
+        const threeCam = (cam as any).__r3f_camera;
+        if (!threeCam) return;
+        raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), threeCam);
+        const hit = new THREE.Vector3();
+        const result = raycaster.ray.intersectPlane(groundPlane, hit);
+        if (!result) return;
+        const pt: Vec2 = { x: hit.x, z: hit.z };
+        const fleet = useFleetStore.getState();
+        const rosStore = useRosStore.getState();
+        const activeId = fleet.activeRobotId;
+        if (mode === 'navigate') {
+          if (rosStore.isMock) {
+            const bot = fleet.robots.find((r) => r.id === activeId);
+            if (bot && !bot.navigating) fleet.addWaypoint(activeId, pt);
+          }
+        } else if (mode === 'mapedit' && rosStore.isMock) {
+          mockPlaceRobot(pt.x, pt.z);
+        }
+      });
+    };
+    tryInit();
+    return () => { cancelled = true; if (cleanup) cleanup(); useTouchStore.getState().setLongPressCallback(null); };
+  }, [mode]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

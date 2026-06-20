@@ -57,13 +57,13 @@ export function connect(url?: string): void {
 }
 
 export function disconnect(): void {
-  if (mapSub) { mapSub.unsubscribe(); mapSub = null; }
-  if (odomSub) { odomSub.unsubscribe(); odomSub = null; }
-  if (navPlanSub) { navPlanSub.unsubscribe(); navPlanSub = null; }
+  try { if (mapSub) { mapSub.unsubscribe(); mapSub = null; } } catch {}
+  try { if (odomSub) { odomSub.unsubscribe(); odomSub = null; } } catch {}
+  try { if (navPlanSub) { navPlanSub.unsubscribe(); navPlanSub = null; } } catch {}
   cmdVelTopic = null;
-  if (ros) { ros.close(); ros = null; }
+  try { if (ros) { ros.close(); ros = null; } } catch {}
   useRosStore.getState().setStatus('disconnected');
-  useMapStore.getState().setGrid(null as unknown as OccupancyGridData);
+  useMapStore.getState().setGrid(null as any);
   useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x: 2, z: 2, yaw: 0 });
   useNavPlanStore.getState().clearMoveBasePlan();
 }

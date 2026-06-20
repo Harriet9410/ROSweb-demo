@@ -242,11 +242,50 @@ export function ActionPanel({ mode }: ActionPanelProps) {
               </div>
               <div className="max-h-48 overflow-y-auto space-y-0.5" role="list" aria-label={t('Waypoints', locale)}>
                 {activeBot.waypoints.map((wp, i) => (
-                  <div key={wp.id} role="listitem" className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                    activeBot.navigating && i === activeBot.currentWaypointIdx ? 'bg-pink-600/40 ring-1 ring-pink-400'
-                    : activeBot.navigating && i < activeBot.currentWaypointIdx ? 'bg-gray-600/30 opacity-50'
-                    : 'bg-gray-700/50'
-                  }`}>
+                  <div
+                    key={wp.id}
+                    role="listitem"
+                    draggable={!activeBot.navigating}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', String(i));
+                      e.dataTransfer.effectAllowed = 'move';
+                      (e.currentTarget as HTMLElement).classList.add('wp-dragging');
+                    }}
+                    onDragEnd={(e) => {
+                      (e.currentTarget as HTMLElement).classList.remove('wp-dragging');
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      (e.currentTarget as HTMLElement).classList.add('wp-drag-over');
+                    }}
+                    onDragLeave={(e) => {
+                      (e.currentTarget as HTMLElement).classList.remove('wp-drag-over');
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLElement).classList.remove('wp-drag-over');
+                      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                      const toIdx = i;
+                      if (fromIdx === toIdx || isNaN(fromIdx)) return;
+                      const fleet = useFleetStore.getState();
+                      const bot = fleet.robots.find((r) => r.id === activeRobotId);
+                      if (!bot) return;
+                      const wps = [...bot.waypoints];
+                      const [moved] = wps.splice(fromIdx, 1);
+                      wps.splice(toIdx, 0, moved);
+                      useFleetStore.setState({
+                        robots: fleet.robots.map((r) =>
+                          r.id === activeRobotId ? { ...r, waypoints: wps } : r
+                        ),
+                      });
+                    }}
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded select-none ${
+                      activeBot.navigating && i === activeBot.currentWaypointIdx ? 'bg-pink-600/40 ring-1 ring-pink-400'
+                      : activeBot.navigating && i < activeBot.currentWaypointIdx ? 'bg-gray-600/30 opacity-50'
+                      : 'bg-gray-700/50'
+                    } ${!activeBot.navigating ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                  >
                     <span className="w-5 h-5 rounded-full text-white flex items-center justify-center text-[10px] font-bold shrink-0" style={{ backgroundColor: activeBot.color }}>{i + 1}</span>
                     <span className="text-gray-300 flex-1 truncate">({wp.x.toFixed(1)}, {wp.z.toFixed(1)})</span>
                     {!activeBot.navigating && (
@@ -404,13 +443,15 @@ export function ActionPanel({ mode }: ActionPanelProps) {
           <button onClick={() => { useUndoStore.getState().pushUndo(); useHRPStore.getState().clearPath(); }} className="w-full text-xs bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded">{t('Clear Path', locale)}</button>
           <div className="text-xs text-gray-500">{t('Points:', locale)} {hrpPath.length} | {t('Segments:', locale)} {hrpSegmentSpeeds.length}</div>
           {hrpPath.length >= 2 && (
-            <div className="space-y-1">
-              <button onClick={handleAutoSpeed} className="w-full text-[10px] bg-purple-700/60 hover:bg-purple-600/60 text-purple-200 px-1.5 py-1 rounded">{t('Auto Speed (Zone Match)', locale)}</button>
-              <div className="text-xs text-gray-400">
-                {t('Est. time:', locale)} <span className="text-cyan-400 font-mono">{calcEstTime()}</span>
-                {' | '}{t('Total:', locale)} <span className="text-cyan-400 font-mono">{calcTotalDist().toFixed(1)}m</span>
-              </div>
-            </div>
+            <PathStatsPanel
+              path={hrpPath}
+              segmentSpeeds={hrpSegmentSpeeds}
+              blockedSegments={hrpBlockedSegments}
+              locale={locale}
+              onAutoSpeed={handleAutoSpeed}
+              estTime={calcEstTime()}
+              totalDist={calcTotalDist()}
+            />
           )}
         </>
       )}
@@ -426,4 +467,42 @@ function pointInPolygon(px: number, pz: number, vertices: { x: number; z: number
     if (((zi > pz) !== (zj > pz)) && (px < (xj - xi) * (pz - zi) / (zj - zi) + xi)) inside = !inside;
   }
   return inside;
+}
+
+function PathStatsPanel({ path, segmentSpeeds, blockedSegments, locale, onAutoSpeed, estTime, totalDist }: {
+  path: { x: number; z: number }[];
+  segmentSpeeds: number[];
+  blockedSegments: boolean[];
+  locale: string;
+  onAutoSpeed: () => void;
+  estTime: string;
+  totalDist: number;
+}) {
+  const validSpeeds = segmentSpeeds.filter((_, i) => !blockedSegments[i]);
+  const maxSpeed = validSpeeds.length > 0 ? Math.max(...validSpeeds) : 0;
+  const minSpeed = validSpeeds.length > 0 ? Math.min(...validSpeeds) : 0;
+  const blockedCount = blockedSegments.filter(Boolean).length;
+
+  return (
+    <div className="bg-gray-700/30 rounded p-2 space-y-1.5 border border-gray-600/50">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-gray-300 font-bold">{t('Path Statistics', locale)}</span>
+        <button onClick={onAutoSpeed} className="text-[10px] bg-purple-700/60 hover:bg-purple-600/60 text-purple-200 px-1.5 py-0.5 rounded">{t('Auto Speed (Zone Match)', locale)}</button>
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+        <div className="text-gray-400">{t('Total Length:', locale)}</div>
+        <div className="text-cyan-400 font-mono text-right">{totalDist.toFixed(2)}m</div>
+        <div className="text-gray-400">{t('Est. Time:', locale)}</div>
+        <div className="text-cyan-400 font-mono text-right">{estTime}</div>
+        <div className="text-gray-400">{t('Max Speed:', locale)}</div>
+        <div className="text-green-400 font-mono text-right">{maxSpeed.toFixed(1)} m/s</div>
+        <div className="text-gray-400">{t('Min Speed:', locale)}</div>
+        <div className="text-yellow-400 font-mono text-right">{minSpeed.toFixed(1)} m/s</div>
+        <div className="text-gray-400">{t('Blocked:', locale)}</div>
+        <div className={`font-mono text-right ${blockedCount > 0 ? 'text-red-400' : 'text-green-400'}`}>{blockedCount} / {segmentSpeeds.length}</div>
+        <div className="text-gray-400">{t('Segments:', locale)}</div>
+        <div className="text-gray-300 font-mono text-right">{segmentSpeeds.length}</div>
+      </div>
+    </div>
+  );
 }

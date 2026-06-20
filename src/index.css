@@ -70,3 +70,93 @@ body,
 .hc-mode button:hover {
   outline: 2px solid var(--hc-accent) !important;
 }
+
+.light-theme {
+  --lt-bg-primary: #f5f5f5;
+  --lt-bg-secondary: #e8e8e8;
+  --lt-bg-tertiary: #ffffff;
+  --lt-border: #cccccc;
+  --lt-text: #1a1a1a;
+  --lt-text-muted: #666666;
+  --lt-text-dim: #999999;
+  --lt-accent: #1976d2;
+  color: var(--lt-text);
+}
+
+.light-theme .bg-gray-900 {
+  background-color: var(--lt-bg-primary) !important;
+}
+
+.light-theme .bg-gray-800 {
+  background-color: var(--lt-bg-secondary) !important;
+}
+
+.light-theme .bg-gray-700,
+.light-theme .bg-gray-700\/50 {
+  background-color: var(--lt-bg-tertiary) !important;
+}
+
+.light-theme .border-gray-600,
+.light-theme .border-gray-700 {
+  border-color: var(--lt-border) !important;
+}
+
+.light-theme .text-white,
+.light-theme .text-gray-200 {
+  color: var(--lt-text) !important;
+}
+
+.light-theme .text-gray-300,
+.light-theme .text-gray-400 {
+  color: var(--lt-text-muted) !important;
+}
+
+.light-theme .text-gray-500,
+.light-theme .text-gray-600 {
+  color: var(--lt-text-dim) !important;
+}
+
+.light-theme input,
+.light-theme select {
+  background-color: var(--lt-bg-tertiary) !important;
+  color: var(--lt-text) !important;
+  border-color: var(--lt-border) !important;
+}
+
+.light-theme button:not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-yellow"]):not([class*="bg-orange"]):not([class*="bg-purple"]):not([class*="bg-pink"]) {
+  color: var(--lt-text-muted);
+}
+
+.light-theme .text-red-400 { color: #d32f2f !important; }
+.light-theme .text-green-400 { color: #2e7d32 !important; }
+.light-theme .text-cyan-400 { color: #00838f !important; }
+.light-theme .text-yellow-400 { color: #f9a825 !important; }
+.light-theme .text-pink-400 { color: #c2185b !important; }
+.light-theme .text-purple-400 { color: #7b1fa2 !important; }
+.light-theme .text-orange-400 { color: #e65100 !important; }
+.light-theme .text-blue-400 { color: #1565c0 !important; }
+
+.light-theme .bg-pink-600\/40 {
+  background-color: rgba(194, 24, 91, 0.15) !important;
+}
+
+.light-theme .ring-pink-400 {
+  --tw-ring-color: #c2185b !important;
+}
+
+.light-theme .bg-gray-600\/30 {
+  background-color: rgba(0,0,0,0.08) !important;
+}
+
+.minimap-clickable {
+  pointerEvents: auto !important;
+  cursor: crosshair;
+}
+
+.wp-drag-over {
+  border-top: 2px solid #42a5f5;
+}
+
+.wp-dragging {
+  opacity: 0.4;
+}

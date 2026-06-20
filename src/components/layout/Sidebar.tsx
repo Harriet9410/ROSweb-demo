@@ -17,6 +17,7 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
   const isMock = useRosStore((s) => s.isMock);
   const locale = useA11yStore((s) => s.locale);
   const highContrast = useA11yStore((s) => s.highContrast);
+  const lightTheme = useA11yStore((s) => s.lightTheme);
 
   return (
     <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col h-full overflow-hidden relative z-10" role="navigation" aria-label={t('Actions', locale)}>
@@ -68,13 +69,24 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
           <button
             type="button"
             onMouseDown={(e) => { e.stopPropagation(); useA11yStore.getState().toggleHighContrast(); }}
-            className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer select-none ml-auto ${
+            className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer select-none ${
               highContrast ? 'bg-yellow-600 text-white font-bold' : 'bg-gray-700 text-gray-400 hover:text-white'
             }`}
             aria-label="Toggle high contrast mode"
             aria-pressed={highContrast}
           >
             HC
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => { e.stopPropagation(); useA11yStore.getState().toggleLightTheme(); }}
+            className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer select-none ${
+              lightTheme ? 'bg-amber-500 text-white font-bold' : 'bg-gray-700 text-gray-400 hover:text-white'
+            }`}
+            aria-label="Toggle light theme"
+            aria-pressed={lightTheme}
+          >
+            ☀
           </button>
         </div>
         <div className="text-[10px] text-gray-500">{t('Right-click: Rotate', locale)}</div>

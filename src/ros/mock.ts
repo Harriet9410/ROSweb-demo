@@ -1,8 +1,8 @@
 import { useMapStore } from '../stores/mapStore';
 import { useRosStore } from '../stores/rosStore';
 import { useFleetStore } from '../stores/fleetStore';
+import { useRobotPoseStore } from '../stores/robotPoseStore';
 import { useToastStore } from '../stores/toastStore';
-import { useWaypointStore } from '../stores/waypointStore';
 import type { SegmentSpeed } from '../stores/hrpStore';
 import type { OccupancyGridData } from '../utils/mapRenderer';
 
@@ -349,6 +349,12 @@ function updateOdom() {
 
   const fleet = useFleetStore.getState();
   fleet.setRobotPose(fleet.activeRobotId, { x: robotX, z: robotZ, yaw: robotYaw });
+  useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
+
+  const activeBot = fleet.getActiveRobot();
+  if (activeBot) {
+    useRobotPoseStore.getState().setVelocity(activeBot.linearVelocity, activeBot.angularVelocity);
+  }
 }
 
 export function startMock(mapType: 'default' | 'blank' = 'default'): void {
@@ -390,6 +396,7 @@ export function startMock(mapType: 'default' | 'blank' = 'default'): void {
   robotZ = 1.5;
   robotYaw = 0;
   useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x: robotX, z: robotZ, yaw: robotYaw });
+  useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
   smoothPath = [];
   pathSegmentSpeeds = [];
   pathIdx = 0;
@@ -607,7 +614,8 @@ export function mockPublishHRPPath(poses: { x: number; z: number }[], segmentSpe
   smoothPath = checked;
   pathSegmentSpeeds = speeds;
   pathIdx = 0;
-  useWaypointStore.getState().clearNav();
+  const fleet = useFleetStore.getState();
+  fleet.clearNav(fleet.activeRobotId);
   addLog(`Following path with ${checked.length} waypoints...`);
 }
 
@@ -731,7 +739,7 @@ export function mockPlaceRobot(worldX: number, worldZ: number): void {
   pathSegmentSpeeds = [];
   pathIdx = 0;
   useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x: robotX, z: robotZ, yaw: robotYaw });
-  useWaypointStore.getState().clearNav();
+  useRobotPoseStore.getState().setPose({ x: robotX, z: robotZ, yaw: robotYaw });
   addLog(`Robot placed at (${worldX.toFixed(1)}, ${worldZ.toFixed(1)})`);
 }
 
@@ -740,6 +748,7 @@ export function setMockRobotPose(x: number, z: number, yaw: number): void {
   robotZ = z;
   robotYaw = yaw;
   useFleetStore.getState().setRobotPose(useFleetStore.getState().activeRobotId, { x, z, yaw });
+  useRobotPoseStore.getState().setPose({ x, z, yaw });
 }
 
 export function mockResetMap(): void {

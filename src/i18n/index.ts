@@ -109,6 +109,13 @@ const translations: Record<Locale, Record<string, string>> = {
     'Dog': '犬型',
     'Type:': '类型:',
     'Active type:': '当前类型:',
+    'Light Theme': '浅色主题',
+    'Path Statistics': '路径统计',
+    'Total Length:': '总长:',
+    'Est. Time:': '预计时间:',
+    'Max Speed:': '最大速度:',
+    'Min Speed:': '最小速度:',
+    'Blocked:': '阻塞:',
   },
   ja: {
     'MRReP / MRHaD': 'MRReP / MRHaD',
@@ -217,6 +224,13 @@ const translations: Record<Locale, Record<string, string>> = {
     'Dog': 'ドッグタイプ',
     'Type:': 'タイプ:',
     'Active type:': 'アクティブタイプ:',
+    'Light Theme': 'ライトテーマ',
+    'Path Statistics': 'パス統計',
+    'Total Length:': '全長:',
+    'Est. Time:': '推定時間:',
+    'Max Speed:': '最高速度:',
+    'Min Speed:': '最低速度:',
+    'Blocked:': 'ブロック:',
   },
 };
 
