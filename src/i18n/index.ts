@@ -202,6 +202,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'No map data yet. Start SLAM to generate map.': '暂无地图数据，请先启动 SLAM 建图。',
     'Saved Maps': '已保存地图',
     'Delete': '删除',
+    'ROS Log': 'ROS 日志',
   },
   ja: {
     'MRReP / MRHaD': 'MRReP / MRHaD',
@@ -403,6 +404,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'No map data yet. Start SLAM to generate map.': 'マップデータがありません。SLAMを開始してマップを生成してください。',
     'Saved Maps': '保存済みマップ',
     'Delete': '削除',
+    'ROS Log': 'ROS ログ',
   },
 };
 

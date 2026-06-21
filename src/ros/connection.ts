@@ -9,7 +9,7 @@ import { OccupancyGridData } from '../utils/mapRenderer';
 import { saveMapToFiles, addMapMeta } from '../utils/mapSaver';
 import { quaternionToYaw, yawToQuaternion } from '../utils/coordinate';
 import type { SegmentSpeed } from '../stores/hrpStore';
-import type { RosMsg_OccupancyGrid, RosMsg_Odometry, RosMsg_Path, RosMsg_LaserScan, RosMsg_CompressedImage } from './types';
+import type { RosMsg_OccupancyGrid, RosMsg_Odometry, RosMsg_Path, RosMsg_LaserScan, RosMsg_CompressedImage, RosMsg_GoalStatusArray, RosMsg_BatteryState } from './types';
 
 let ros: Ros | null = null;
 let mapSub: Topic | null = null;
@@ -19,6 +19,8 @@ let particleSub: Topic | null = null;
 let cmdVelTopic: Topic | null = null;
 let scanSub: Topic | null = null;
 let cameraSub: Topic | null = null;
+let moveBaseStatusSub: Topic | null = null;
+let batterySub: Topic | null = null;
 let mapOriginX = 0;
 let mapOriginY = 0;
 let mapResolution = 0.05;
@@ -47,11 +49,13 @@ export function connect(url?: string): void {
 
   ros.on('connection', () => {
     useRosStore.getState().setStatus('connected');
+    useRosStore.getState().addRosLog({ direction: 'sys', topic: 'rosbridge', summary: 'Connected' });
     subscribeAll();
   });
 
   ros.on('error', () => {
     useRosStore.getState().setStatus('error');
+    useRosStore.getState().addRosLog({ direction: 'sys', topic: 'rosbridge', summary: 'Connection error' });
   });
 
   ros.on('close', () => {
@@ -59,6 +63,7 @@ export function connect(url?: string): void {
     if (s !== 'error') {
       useRosStore.getState().setStatus('disconnected');
     }
+    useRosStore.getState().addRosLog({ direction: 'sys', topic: 'rosbridge', summary: 'Disconnected' });
   });
 }
 
@@ -68,6 +73,8 @@ export function disconnect(): void {
   try { if (navPlanSub) { navPlanSub.unsubscribe(); navPlanSub = null; } } catch {}
   try { if (scanSub) { scanSub.unsubscribe(); scanSub = null; } } catch {}
   try { if (cameraSub) { cameraSub.unsubscribe(); cameraSub = null; } } catch {}
+  try { if (moveBaseStatusSub) { moveBaseStatusSub.unsubscribe(); moveBaseStatusSub = null; } } catch {}
+  try { if (batterySub) { batterySub.unsubscribe(); batterySub = null; } } catch {}
   cmdVelTopic = null;
   try { if (ros) { ros.close(); ros = null; } } catch {}
   useRosStore.getState().setStatus('disconnected');
@@ -221,6 +228,53 @@ function subscribeAll(): void {
       useScanStore.getState().setCameraImage(prefix + m.data);
     }
   });
+
+  moveBaseStatusSub = new Topic({
+    ros,
+    name: '/move_base/status',
+    messageType: 'actionlib_msgs/GoalStatusArray',
+    throttle_rate: 200,
+  });
+
+  moveBaseStatusSub.subscribe((msg: unknown) => {
+    const m = msg as RosMsg_GoalStatusArray;
+    const fleet = useFleetStore.getState();
+    const bot = fleet.robots.find((r) => r.id === fleet.activeRobotId);
+    if (!bot || !bot.navigating) return;
+
+    for (const s of m.status_list) {
+      if (s.status === 3) {
+        const nextIdx = bot.currentWaypointIdx + 1;
+        if (nextIdx < bot.waypoints.length) {
+          fleet.setCurrentWaypointIdx(fleet.activeRobotId, nextIdx);
+          const wp = bot.waypoints[nextIdx];
+          publishNavGoal(wp.x, wp.z, wp.targetYaw ?? 0);
+          useRosStore.getState().addRosLog({ direction: 'sys', topic: '/move_base/status', summary: `Goal reached, advancing to WP ${nextIdx + 1}` });
+        } else {
+          fleet.clearNav(fleet.activeRobotId);
+          useRosStore.getState().addRosLog({ direction: 'sys', topic: '/move_base/status', summary: 'All goals reached' });
+        }
+        break;
+      } else if (s.status === 4 || s.status === 5) {
+        fleet.clearNav(fleet.activeRobotId);
+        useRosStore.getState().addRosLog({ direction: 'sys', topic: '/move_base/status', summary: `Goal failed: ${s.text || 'aborted'}` });
+        break;
+      }
+    }
+  });
+
+  batterySub = new Topic({
+    ros,
+    name: '/battery_state',
+    messageType: 'sensor_msgs/BatteryState',
+    throttle_rate: 5000,
+  });
+
+  batterySub.subscribe((msg: unknown) => {
+    const m = msg as RosMsg_BatteryState;
+    const fleet = useFleetStore.getState();
+    fleet.setRobotBattery(fleet.activeRobotId, m.percentage * 100);
+  });
 }
 
 export function getRos(): Ros | null {
@@ -247,6 +301,7 @@ export function publishNavGoal(x: number, z: number, yaw: number = 0): void {
     },
   };
   topic.publish(msg as never);
+  useRosStore.getState().addRosLog({ direction: 'out', topic: '/move_base_simple/goal', summary: `→ (${rosPos.x.toFixed(2)}, ${rosPos.y.toFixed(2)})` });
 }
 
 export function publishWaypointGoals(waypoints: { x: number; z: number }[]): void {
@@ -379,6 +434,16 @@ export function publishSlamCommand(command: string): void {
     messageType: 'std_msgs/String',
   });
   topic.publish({ data: command } as never);
+}
+
+export function cancelNavGoal(): void {
+  if (!ros) return;
+  const topic = new Topic({
+    ros,
+    name: '/move_base/cancel',
+    messageType: 'actionlib_msgs/GoalID',
+  });
+  topic.publish({ stamp: { secs: 0, nsecs: 0 }, id: '' } as never);
 }
 
 export { Ros, Topic };

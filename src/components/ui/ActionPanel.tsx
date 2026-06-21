@@ -12,7 +12,7 @@ import { useWpSelectStore } from '../../stores/wpSelectStore';
 import { useAmclStore } from '../../stores/amclStore';
 import { TaskPanel } from './TaskPanel';
 import { t, type Locale } from '../../i18n';
-import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal } from '../../ros/connection';
+import { publishHRZZones, publishHRPPath, publishHRPSpeeds, publishNavGoal, cancelNavGoal } from '../../ros/connection';
 import { mockPublishHRZZones, mockPublishHRPPath, mockStartWaypointNav, mockCancelNav, mockResetMap, mockClearMap, mockSetAmclDivergence } from '../../ros/mock';
 import { sceneToRos, dist } from '../../utils/coordinate';
 import { checkPathReachability } from '../../utils/pathCheck';
@@ -138,7 +138,10 @@ export function ActionPanel({ mode }: ActionPanelProps) {
 
   const handleCancelNav = () => {
     if (isMock) mockCancelNav();
-    else useFleetStore.getState().clearNav(useFleetStore.getState().activeRobotId);
+    else {
+      cancelNavGoal();
+      useFleetStore.getState().clearNav(useFleetStore.getState().activeRobotId);
+    }
   };
 
   const canPublish = isConnected;

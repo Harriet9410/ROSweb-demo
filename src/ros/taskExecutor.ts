@@ -3,7 +3,7 @@ import { useFleetStore } from '../stores/fleetStore';
 import { DEFAULT_SPEED } from '../stores/hrpStore';
 import { useToastStore } from '../stores/toastStore';
 import { mockPublishHRPPath, mockCancelNav } from './mock';
-import { publishHRPPath, publishHRPSpeeds, publishNavGoal } from './connection';
+import { publishHRPPath, publishHRPSpeeds, publishNavGoal, cancelNavGoal } from './connection';
 import { useRosStore } from '../stores/rosStore';
 
 let executorTimer: ReturnType<typeof setInterval> | null = null;
@@ -159,6 +159,7 @@ export function cancelExecution(execId: string): void {
   const isMock = useRosStore.getState().isMock;
 
   if (isMock) mockCancelNav();
+  else cancelNavGoal();
   fleet.clearNav(exec.robotId);
   currentWaitEnd = null;
 

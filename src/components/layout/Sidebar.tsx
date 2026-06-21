@@ -50,6 +50,7 @@ export function Sidebar({ mode, onModeChange }: SidebarProps) {
         </div>
 
         {isMock && <MockLogPanel locale={locale} />}
+        {!isMock && <RosLogPanel locale={locale} />}
 
         <SnapshotPanel />
       </div>
@@ -158,6 +159,56 @@ function MockLogPanel({ locale }: { locale: Locale }) {
           lines.map((line, i) => (
             <div key={i} className="whitespace-pre-wrap break-all">{line}</div>
           ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RosLogPanel({ locale }: { locale: Locale }) {
+  const logRef = useRef<HTMLDivElement>(null);
+  const rosLog = useRosStore((s) => s.rosLog);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (logRef.current) {
+        logRef.current.scrollTop = logRef.current.scrollHeight;
+      }
+    });
+  }, [rosLog]);
+
+  return (
+    <div className="p-3 border-b border-gray-700 flex-1 min-h-0 flex flex-col">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="text-xs text-cyan-400 font-medium">{t('ROS Log', locale)}</div>
+        <button
+          onClick={() => useRosStore.getState().clearRosLog()}
+          className="text-[9px] text-gray-500 hover:text-gray-300"
+        >
+          {t('Clear History', locale)}
+        </button>
+      </div>
+      <div
+        ref={logRef}
+        className="flex-1 overflow-y-auto bg-gray-900 rounded p-2 text-[10px] text-gray-400 font-mono leading-relaxed min-h-0 max-h-48"
+        role="log"
+        aria-label={t('ROS Log', locale)}
+      >
+        {rosLog.length === 0 ? (
+          <span className="text-gray-600">{t('Waiting for events...', locale)}</span>
+        ) : (
+          rosLog.map((entry, i) => {
+            const dirColor = entry.direction === 'in' ? 'text-green-400' : entry.direction === 'out' ? 'text-blue-400' : 'text-yellow-400';
+            const dirSymbol = entry.direction === 'in' ? '◀' : entry.direction === 'out' ? '▶' : '●';
+            return (
+              <div key={i} className="whitespace-pre-wrap break-all">
+                <span className="text-gray-600">{new Date(entry.timestamp).toLocaleTimeString()}</span>{' '}
+                <span className={dirColor}>{dirSymbol}</span>{' '}
+                <span className="text-gray-300">{entry.topic}</span>{' '}
+                <span className="text-gray-500">{entry.summary}</span>
+              </div>
+            );
+          })
         )}
       </div>
     </div>

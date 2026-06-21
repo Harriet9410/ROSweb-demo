@@ -53,3 +53,21 @@ export interface RosMsg_CompressedImage {
   format: string;
   data: string;
 }
+
+export interface RosMsg_GoalStatus {
+  goal_id: { id: string; stamp: { secs: number; nsecs: number } };
+  status: number;
+  text: string;
+}
+
+export interface RosMsg_GoalStatusArray {
+  header: { frame_id: string; stamp: { secs: number; nsecs: number } };
+  status_list: RosMsg_GoalStatus[];
+}
+
+export interface RosMsg_BatteryState {
+  header: { frame_id: string; stamp: { secs: number; nsecs: number } };
+  voltage: number;
+  percentage: number;
+  power_supply_status: number;
+}
